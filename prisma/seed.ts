@@ -773,6 +773,26 @@ async function main() {
     },
   });
 
+  // ── Site Settings (description) ──
+  const descSettings = [
+    { key: "description_headline", value: "一場探索佛教未來的學術盛會" },
+    { key: "description_headline_en", value: "An Academic Symposium Exploring the Future of Buddhism" },
+    { key: "description_body", value: "「全球共善學思會」匯聚國際佛學研究者、宗教實踐者與人文學者，以學術發表、圓桌論壇與沉浸式藝術體驗，深入探討應用佛教、菩薩道精神與佛教藝術的當代轉譯。本次學思會由慈濟基金會與哈佛大學 CAMLab 共同主辦，期盼在學術對話中，為佛教的未來開展新的視野與可能。" },
+    { key: "description_body_en", value: "The Tzu Chi Global Symposium brings together international Buddhist scholars, religious practitioners, and humanities researchers for academic presentations, roundtable discussions, and immersive art experiences. Co-hosted by the Tzu Chi Foundation and Harvard University's CAMLab, this symposium explores applied Buddhism, the Bodhisattva path, and the contemporary translation of Buddhist art." },
+    { key: "description_highlights", value: JSON.stringify([
+      { icon: "BookOpen", label: "多篇學術論文發表" },
+      { icon: "Lightbulb", label: "2 場圓桌論壇對話" },
+      { icon: "Heart", label: "跨宗派跨領域交流" },
+      { icon: "Globe", label: "來自全球的學者參與" },
+    ]) },
+  ];
+
+  for (const s of descSettings) {
+    await prisma.siteSetting.create({
+      data: { siteId: site.id, key: s.key, value: s.value },
+    });
+  }
+
   console.log("Seed data created successfully!");
 }
 

@@ -6,7 +6,12 @@ export async function GET(request: NextRequest) {
   const sessionId = searchParams.get("sessionId");
   const status = searchParams.get("status");
 
+  const siteId = searchParams.get("siteId");
+
   const where: Record<string, unknown> = {};
+  if (siteId) {
+    where.session = { day: { siteId: parseInt(siteId) } };
+  }
   if (sessionId) where.sessionId = parseInt(sessionId);
   if (status) where.status = status;
 
