@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -39,7 +39,7 @@ import {
 /* ═══════════════════════════════════════════
    NAV ITEMS
    ═══════════════════════════════════════════ */
-type Tab = "appearance" | "description" | "tour" | "programme" | "venues" | "speakers" | "papers" | "styles" | "settings";
+type Tab = "appearance" | "description" | "tour" | "programme" | "venues" | "speakers" | "styles" | "settings";
 
 const navItems: { label: string; id: Tab; icon: React.ComponentType<{ className?: string }> }[] = [
   { label: "網站外觀", id: "appearance", icon: Globe },
@@ -48,7 +48,6 @@ const navItems: { label: string; id: Tab; icon: React.ComponentType<{ className?
   { label: "議程", id: "programme", icon: Calendar },
   { label: "場地", id: "venues", icon: MapPin },
   { label: "講者", id: "speakers", icon: Users },
-  { label: "論文", id: "papers", icon: FileText },
   { label: "樣式設定", id: "styles", icon: Palette },
   { label: "設定", id: "settings", icon: Settings },
 ];
@@ -56,7 +55,7 @@ const navItems: { label: string; id: Tab; icon: React.ComponentType<{ className?
 /* ═══════════════════════════════════════════
    SECTION VISIBILITY
    ═══════════════════════════════════════════ */
-type SectionKey = "description" | "tour" | "programme" | "venues" | "speakers" | "papers";
+type SectionKey = "description" | "tour" | "programme" | "venues" | "speakers";
 
 const sectionLabels: Record<SectionKey, string> = {
   description: "活動簡介",
@@ -64,7 +63,6 @@ const sectionLabels: Record<SectionKey, string> = {
   programme: "議程",
   venues: "場地",
   speakers: "講者",
-  papers: "論文",
 };
 
 /* ═══════════════════════════════════════════
@@ -170,6 +168,7 @@ type HighlightItem = { icon: string; label: string; labelEn?: string };
 function AppearancePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: string) => void }) {
   const [favicon, setFavicon] = useState("");
   const [banner, setBanner] = useState("");
+  const [bannerMobile, setBannerMobile] = useState("");
   const [ogTitle, setOgTitle] = useState("");
   const [ogTitleEn, setOgTitleEn] = useState("");
   const [ogDescription, setOgDescription] = useState("");
@@ -186,6 +185,7 @@ function AppearancePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: 
         const data = await res.json();
         if (data.favicon) setFavicon(data.favicon);
         if (data.banner_image) setBanner(data.banner_image);
+        if (data.banner_image_mobile) setBannerMobile(data.banner_image_mobile);
         if (data.og_title) setOgTitle(data.og_title);
         if (data.og_title_en) setOgTitleEn(data.og_title_en);
         if (data.og_description) setOgDescription(data.og_description);
@@ -204,6 +204,7 @@ function AppearancePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: 
       const pairs = [
         { key: "favicon", value: favicon },
         { key: "banner_image", value: banner },
+        { key: "banner_image_mobile", value: bannerMobile },
         { key: "og_title", value: ogTitle },
         { key: "og_title_en", value: ogTitleEn },
         { key: "og_description", value: ogDescription },
@@ -224,19 +225,20 @@ function AppearancePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: 
     setSaving(false);
   };
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: "favicon" | "banner" | "og") => {
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: "favicon" | "banner" | "banner-mobile" | "og") => {
     const file = e.target.files?.[0];
     if (!file) return;
     const formData = new FormData();
     formData.append("file", file);
     formData.append("siteId", String(siteId));
-    formData.append("category", field === "favicon" ? "general" : field === "banner" ? "general" : "general");
+    formData.append("category", "general");
     try {
       const res = await fetch("/api/upload", { method: "POST", body: formData });
       if (res.ok) {
         const data = await res.json();
         if (field === "favicon") setFavicon(data.path);
         else if (field === "banner") { setBanner(data.path); if (!ogImage) setOgImage(data.path); }
+        else if (field === "banner-mobile") setBannerMobile(data.path);
         else setOgImage(data.path);
         onToast?.("上傳成功");
       }
@@ -300,6 +302,29 @@ function AppearancePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: 
           </label>
           <span className="text-xs text-muted">或輸入路徑：</span>
           <input type="text" value={banner} onChange={(e) => { setBanner(e.target.value); if (!ogImage) setOgImage(e.target.value); }} className="flex-1 px-3 py-1.5 border border-border rounded-lg text-sm" />
+        </div>
+      </div>
+
+      {/* Banner Mobile */}
+      <div className="bg-white rounded-xl border border-border p-6 space-y-4">
+        <h3 className="font-semibold text-dark">Banner Mobile 手機橫幅</h3>
+        <p className="text-xs text-muted">手機版的橫幅圖片，建議 750x1000px（直式）。若未上傳，將使用桌面版橫幅。</p>
+        {bannerMobile ? (
+          <div className="border border-border rounded-lg overflow-hidden max-w-[240px]">
+            <img src={bannerMobile} alt="banner mobile" className="w-full h-auto" />
+          </div>
+        ) : (
+          <div className="border border-dashed border-border rounded-lg h-32 max-w-[240px] flex items-center justify-center text-muted text-sm">
+            {banner ? "使用桌面版橫幅" : "尚未上傳"}
+          </div>
+        )}
+        <div className="flex items-center gap-3">
+          <label className="px-3 py-1.5 bg-cream border border-border rounded-lg text-sm text-dark cursor-pointer hover:bg-cream-dark transition-colors">
+            Upload 上傳
+            <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => handleUpload(e, "banner-mobile")} />
+          </label>
+          <span className="text-xs text-muted">或輸入路徑：</span>
+          <input type="text" value={bannerMobile} onChange={(e) => setBannerMobile(e.target.value)} className="flex-1 px-3 py-1.5 border border-border rounded-lg text-sm" />
         </div>
       </div>
 
@@ -622,7 +647,7 @@ function SpeakersPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: st
             <tr className="text-left text-xs text-muted uppercase tracking-wider bg-cream/50">
               <th className="px-6 py-3 font-medium">姓名</th>
               <th className="px-6 py-3 font-medium">所屬單位 Affiliation</th>
-              <th className="px-6 py-3 font-medium">職稱 Title</th>
+              <th className="px-6 py-3 font-medium">職稱 / 論文</th>
               <th className="px-6 py-3 font-medium">狀態</th>
               <th className="px-6 py-3 font-medium text-right">操作</th>
             </tr>
@@ -640,7 +665,16 @@ function SpeakersPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: st
                   </div>
                 </td>
                 <td className="px-6 py-4 text-xs text-muted">{s.affiliation}</td>
-                <td className="px-6 py-4 text-xs text-muted">{s.title}</td>
+                <td className="px-6 py-4 text-xs text-muted">
+                  {s.title}
+                  {s.papers && s.papers.length > 0 && (
+                    <div className="mt-1 space-y-0.5">
+                      {s.papers.map((p: any) => (
+                        <p key={p.id} className="text-[10px] text-gold truncate max-w-[200px]">{p.titleEn || p.titleZh}</p>
+                      ))}
+                    </div>
+                  )}
+                </td>
                 <td className="px-6 py-4"><StatusBadge status={s.status || "draft"} /></td>
                 <td className="px-6 py-4">
                   <div className="flex items-center justify-end gap-2">
@@ -714,6 +748,22 @@ function ProgrammePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: s
   const [sessionModerators, setSessionModerators] = useState<number[]>([]);
   const [sessionSpeakers, setSessionSpeakersList] = useState<number[]>([]);
   const [sessionDiscussants, setSessionDiscussants] = useState<number[]>([]);
+  const [newRole, setNewRole] = useState("speaker");
+  const [speakerSearch, setSpeakerSearch] = useState("");
+  const [speakerDropdownOpen, setSpeakerDropdownOpen] = useState(false);
+  const [paperTitles, setPaperTitles] = useState<Record<number, string>>({});
+  const speakerDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close speaker dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (speakerDropdownRef.current && !speakerDropdownRef.current.contains(e.target as Node)) {
+        setSpeakerDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Day management
   const [showDayForm, setShowDayForm] = useState(false);
@@ -790,6 +840,30 @@ function ProgrammePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: s
     }
   };
 
+  const addSpeakerToSession = (speakerId: number) => {
+    if (newRole === "moderator") setSessionModerators([...sessionModerators, speakerId]);
+    else if (newRole === "speaker") setSessionSpeakersList([...sessionSpeakers, speakerId]);
+    else setSessionDiscussants([...sessionDiscussants, speakerId]);
+    setSpeakerSearch("");
+    setSpeakerDropdownOpen(false);
+  };
+
+  const handleQuickCreateSpeaker = async () => {
+    try {
+      const res = await fetch("/api/speakers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ siteId, name: speakerSearch, status: "confirmed" }),
+      });
+      if (res.ok) {
+        const newSpeaker = await res.json();
+        setAllSpeakers([...allSpeakers, newSpeaker]);
+        addSpeakerToSession(newSpeaker.id);
+        onToast?.(`已新增講者「${speakerSearch}」`);
+      }
+    } catch { onToast?.("新增失敗"); }
+  };
+
   const openAdd = () => {
     if (!day) return;
     setEditing(null);
@@ -797,6 +871,8 @@ function ProgrammePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: s
     setSessionModerators([]);
     setSessionSpeakersList([]);
     setSessionDiscussants([]);
+    setPaperTitles({});
+    setSpeakerSearch("");
     setShowForm(true);
   };
 
@@ -818,6 +894,12 @@ function ProgrammePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: s
     setSessionModerators(spkrs.filter((ss: any) => ss.role === "moderator").map((ss: any) => ss.speaker?.id).filter(Boolean));
     setSessionSpeakersList(spkrs.filter((ss: any) => ss.role === "speaker").map((ss: any) => ss.speaker?.id).filter(Boolean));
     setSessionDiscussants(spkrs.filter((ss: any) => ss.role === "discussant").map((ss: any) => ss.speaker?.id).filter(Boolean));
+    // Load paper titles for editing
+    const ptitles: Record<number, string> = {};
+    for (const p of (session.papers || [])) {
+      if (p.speakerId) ptitles[p.speakerId] = p.titleEn || p.titleZh || "";
+    }
+    setPaperTitles(ptitles);
     setShowForm(true);
   };
 
@@ -833,6 +915,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: s
               moderators: sessionModerators,
               speakers: sessionSpeakers,
               discussants: sessionDiscussants,
+              paperTitles: paperTitles,
             },
           }),
         });
@@ -1123,87 +1206,80 @@ function ProgrammePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: s
                 <input type="text" value={form.venue} onChange={(e) => setForm({ ...form, venue: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
               </div>
 
-              {/* Row 5: Speaker Assignments */}
-              {editing && allSpeakers.length > 0 && (
-                <div className="border-t border-border pt-5 space-y-4">
-                  <h4 className="text-sm font-semibold text-dark">講者分配</h4>
+              {/* Row 5: Speaker & Paper Assignments */}
+              {(
+                <div className="border-t border-border pt-5 space-y-3">
+                  <h4 className="text-sm font-semibold text-dark">講者與論文</h4>
 
-                  {/* Moderator */}
-                  <div>
-                    <label className="block text-xs font-medium text-gold mb-1.5">Moderator 主持人</label>
-                    <div className="flex flex-wrap gap-1.5 mb-2">
-                      {sessionModerators.map((id) => {
-                        const spk = allSpeakers.find((s: any) => s.id === id);
-                        return spk ? (
-                          <span key={id} className="inline-flex items-center gap-1 px-2 py-1 bg-gold/10 text-gold text-xs rounded-full">
-                            {spk.name}
-                            <button onClick={() => setSessionModerators(sessionModerators.filter(i => i !== id))} className="hover:text-red-500">&times;</button>
-                          </span>
-                        ) : null;
-                      })}
-                    </div>
-                    <select
-                      value=""
-                      onChange={(e) => { if (e.target.value) setSessionModerators([...sessionModerators, parseInt(e.target.value)]); }}
-                      className="w-full px-3 py-1.5 border border-border rounded-lg text-xs bg-white"
-                    >
-                      <option value="">+ 選擇主持人</option>
-                      {allSpeakers.filter((s: any) => !sessionModerators.includes(s.id)).map((s: any) => (
-                        <option key={s.id} value={s.id}>{s.name}{s.nameCn ? ` (${s.nameCn})` : ""}</option>
-                      ))}
-                    </select>
-                  </div>
+                  {/* List of assigned speakers */}
+                  {[
+                    ...sessionModerators.map(id => ({ id, role: "moderator" })),
+                    ...sessionSpeakers.map(id => ({ id, role: "speaker" })),
+                    ...sessionDiscussants.map(id => ({ id, role: "discussant" })),
+                  ].map(({ id, role }) => {
+                    const spk = allSpeakers.find((s: any) => s.id === id);
+                    if (!spk) return null;
+                    return (
+                      <div key={`${role}-${id}`} className="flex items-center gap-2 bg-cream/50 rounded-lg px-3 py-2">
+                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${
+                          role === "moderator" ? "bg-gold text-white" : role === "discussant" ? "bg-muted text-white" : "bg-green text-white"
+                        }`}>
+                          {role === "moderator" ? "主持" : role === "discussant" ? "與談" : "發表"}
+                        </span>
+                        <span className="text-xs font-medium text-dark shrink-0 w-28 truncate">{spk.name}</span>
+                        {role === "speaker" && (
+                          <input
+                            type="text"
+                            value={paperTitles[id] || ""}
+                            onChange={(e) => setPaperTitles({ ...paperTitles, [id]: e.target.value })}
+                            placeholder="論文標題..."
+                            className="flex-1 px-2 py-1 border border-border rounded text-xs"
+                          />
+                        )}
+                        <button onClick={() => {
+                          if (role === "moderator") setSessionModerators(sessionModerators.filter(i => i !== id));
+                          else if (role === "speaker") setSessionSpeakersList(sessionSpeakers.filter(i => i !== id));
+                          else setSessionDiscussants(sessionDiscussants.filter(i => i !== id));
+                        }} className="text-muted hover:text-red-500 text-sm shrink-0">&times;</button>
+                      </div>
+                    );
+                  })}
 
-                  {/* Speakers */}
-                  <div>
-                    <label className="block text-xs font-medium text-dark mb-1.5">Speakers 發表人</label>
-                    <div className="flex flex-wrap gap-1.5 mb-2">
-                      {sessionSpeakers.map((id) => {
-                        const spk = allSpeakers.find((s: any) => s.id === id);
-                        return spk ? (
-                          <span key={id} className="inline-flex items-center gap-1 px-2 py-1 bg-dark/10 text-dark text-xs rounded-full">
-                            {spk.name}
-                            <button onClick={() => setSessionSpeakersList(sessionSpeakers.filter(i => i !== id))} className="hover:text-red-500">&times;</button>
-                          </span>
-                        ) : null;
-                      })}
-                    </div>
-                    <select
-                      value=""
-                      onChange={(e) => { if (e.target.value) setSessionSpeakersList([...sessionSpeakers, parseInt(e.target.value)]); }}
-                      className="w-full px-3 py-1.5 border border-border rounded-lg text-xs bg-white"
-                    >
-                      <option value="">+ 選擇發表人</option>
-                      {allSpeakers.filter((s: any) => !sessionSpeakers.includes(s.id)).map((s: any) => (
-                        <option key={s.id} value={s.id}>{s.name}{s.nameCn ? ` (${s.nameCn})` : ""}</option>
-                      ))}
+                  {/* Add new speaker row */}
+                  <div className="flex items-center gap-2">
+                    <select value={newRole} onChange={(e) => setNewRole(e.target.value)} className="px-2 py-1.5 border border-border rounded-lg text-xs bg-white w-20 shrink-0">
+                      <option value="speaker">發表</option>
+                      <option value="moderator">主持</option>
+                      <option value="discussant">與談</option>
                     </select>
-                  </div>
-
-                  {/* Commentators */}
-                  <div>
-                    <label className="block text-xs font-medium text-muted mb-1.5">Commentators 與談人</label>
-                    <div className="flex flex-wrap gap-1.5 mb-2">
-                      {sessionDiscussants.map((id) => {
-                        const spk = allSpeakers.find((s: any) => s.id === id);
-                        return spk ? (
-                          <span key={id} className="inline-flex items-center gap-1 px-2 py-1 bg-muted/10 text-muted text-xs rounded-full">
-                            {spk.name}
-                            <button onClick={() => setSessionDiscussants(sessionDiscussants.filter(i => i !== id))} className="hover:text-red-500">&times;</button>
-                          </span>
-                        ) : null;
-                      })}
+                    <div className="relative flex-1" ref={speakerDropdownRef}>
+                      <input
+                        type="text"
+                        value={speakerSearch}
+                        onChange={(e) => setSpeakerSearch(e.target.value)}
+                        onFocus={() => setSpeakerDropdownOpen(true)}
+                        placeholder="搜尋講者名稱，或輸入新講者..."
+                        className="w-full px-2 py-1.5 border border-border rounded-lg text-xs"
+                      />
+                      {speakerDropdownOpen && speakerSearch && (
+                        <div className="absolute top-full left-0 right-0 bg-white border border-border rounded-lg mt-1 shadow-lg z-10 max-h-40 overflow-y-auto">
+                          {allSpeakers
+                            .filter((s: any) => s.name.toLowerCase().includes(speakerSearch.toLowerCase()) || (s.nameCn && s.nameCn.includes(speakerSearch)))
+                            .slice(0, 8)
+                            .map((s: any) => (
+                              <button key={s.id} onClick={() => addSpeakerToSession(s.id)} className="w-full text-left px-3 py-2 text-xs hover:bg-cream transition-colors">
+                                {s.name} {s.nameCn ? `(${s.nameCn})` : ""}
+                              </button>
+                            ))
+                          }
+                          {!allSpeakers.some((s: any) => s.name.toLowerCase() === speakerSearch.toLowerCase()) && (
+                            <button onClick={() => handleQuickCreateSpeaker()} className="w-full text-left px-3 py-2 text-xs text-gold hover:bg-gold/5 border-t border-border">
+                              + 新增講者「{speakerSearch}」
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <select
-                      value=""
-                      onChange={(e) => { if (e.target.value) setSessionDiscussants([...sessionDiscussants, parseInt(e.target.value)]); }}
-                      className="w-full px-3 py-1.5 border border-border rounded-lg text-xs bg-white"
-                    >
-                      <option value="">+ 選擇與談人</option>
-                      {allSpeakers.filter((s: any) => !sessionDiscussants.includes(s.id)).map((s: any) => (
-                        <option key={s.id} value={s.id}>{s.name}{s.nameCn ? ` (${s.nameCn})` : ""}</option>
-                      ))}
-                    </select>
                   </div>
                 </div>
               )}
@@ -1221,172 +1297,12 @@ function ProgrammePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: s
   );
 }
 
-function PapersPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: string) => void }) {
-  const [papers, setPapers] = useState<any[]>([]);
-  const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState<any>(null);
-  const [form, setForm] = useState({ titleZh: "", titleEn: "", abstract: "", status: "draft", speakerId: "", sessionId: "" });
-
-  const fetchPapers = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/papers?siteId=${siteId}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      setPapers(data);
-    } catch { /* ignore */ }
-  }, [siteId]);
-
-  useEffect(() => { fetchPapers(); }, [fetchPapers]);
-
-  const openAdd = () => {
-    setEditing(null);
-    setForm({ titleZh: "", titleEn: "", abstract: "", status: "draft", speakerId: "", sessionId: "" });
-    setShowForm(true);
-  };
-
-  const openEdit = (item: any) => {
-    setEditing(item);
-    setForm({
-      titleZh: item.titleZh || "",
-      titleEn: item.titleEn || "",
-      abstract: item.abstract || "",
-      status: item.status || "draft",
-      speakerId: item.speakerId?.toString() || "",
-      sessionId: item.sessionId?.toString() || "",
-    });
-    setShowForm(true);
-  };
-
-  const handleSave = async () => {
-    try {
-      const payload: any = { ...form };
-      if (payload.speakerId) payload.speakerId = parseInt(payload.speakerId);
-      else delete payload.speakerId;
-      if (payload.sessionId) payload.sessionId = parseInt(payload.sessionId);
-      else delete payload.sessionId;
-
-      if (editing) {
-        await fetch(`/api/papers/${editing.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-      } else {
-        await fetch("/api/papers", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...payload, siteId }),
-        });
-      }
-      setShowForm(false);
-      fetchPapers();
-      onToast?.(editing ? "儲存成功" : "新增成功");
-    } catch (e) {
-      console.error("Failed to save paper", e);
-      onToast?.("儲存失敗，請重試");
-    }
-  };
-
-  const handleDelete = async (id: number) => {
-    if (!confirm("確定刪除？")) return;
-    try {
-      await fetch(`/api/papers/${id}`, { method: "DELETE" });
-      fetchPapers();
-      onToast?.("刪除成功");
-    } catch (e) {
-      console.error("Failed to delete paper", e);
-      onToast?.("儲存失敗，請重試");
-    }
-  };
-
-  return (
-    <>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-lg font-semibold text-dark">所有論文</h2>
-        <button onClick={openAdd} className="flex items-center gap-1.5 px-4 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light transition-colors">
-          <Plus className="w-4 h-4" /> 新增論文
-        </button>
-      </div>
-      <div className="bg-white rounded-xl border border-border overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="text-left text-xs text-muted uppercase tracking-wider bg-cream/50">
-              <th className="px-6 py-3 font-medium">論文標題</th>
-              <th className="px-6 py-3 font-medium">作者</th>
-              <th className="px-6 py-3 font-medium">場次</th>
-              <th className="px-6 py-3 font-medium">狀態</th>
-              <th className="px-6 py-3 font-medium text-right">操作</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {papers.map((p: any) => (
-              <tr key={p.id} className="hover:bg-cream/30">
-                <td className="px-6 py-4 text-xs font-medium text-dark max-w-[300px] truncate">{p.titleZh || p.titleEn || ""}</td>
-                <td className="px-6 py-4">
-                  <div>
-                    <span className="text-xs text-dark">{p.speaker?.name || ""}</span>
-                    {p.speaker?.affiliation && <><br /><span className="text-xs text-muted">{p.speaker.affiliation}</span></>}
-                  </div>
-                </td>
-                <td className="px-6 py-4 text-xs text-muted">{p.session?.titleZh || p.session?.titleEn || ""}</td>
-                <td className="px-6 py-4"><StatusBadge status={p.status || "draft"} /></td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center justify-end gap-2">
-                    <button onClick={() => openEdit(p)} className="p-1.5 text-muted hover:text-gold rounded-md hover:bg-gold/10"><Pencil className="w-4 h-4" /></button>
-                    <button onClick={() => handleDelete(p.id)} className="p-1.5 text-muted hover:text-red-600 rounded-md hover:bg-red-50"><Trash2 className="w-4 h-4" /></button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {papers.length === 0 && (
-              <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-muted">尚無論文資料</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {showForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-lg space-y-4">
-            <h3 className="text-lg font-semibold text-dark">{editing ? "編輯論文" : "新增論文"}</h3>
-            <div>
-              <label className="block text-sm font-medium text-dark mb-1">標題（中文）</label>
-              <input type="text" value={form.titleZh} onChange={(e) => setForm({ ...form, titleZh: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark mb-1">標題（英文）</label>
-              <input type="text" value={form.titleEn} onChange={(e) => setForm({ ...form, titleEn: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark mb-1">摘要</label>
-              <textarea rows={3} value={form.abstract} onChange={(e) => setForm({ ...form, abstract: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark mb-1">狀態</label>
-              <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-white">
-                <option value="draft">草稿</option>
-                <option value="accepted">已接受</option>
-                <option value="under_review">審核中</option>
-                <option value="pending">待確認</option>
-              </select>
-            </div>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-muted">取消</button>
-              <button onClick={handleSave} className="px-4 py-2 bg-gold text-white text-sm rounded-lg">儲存</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
 
 function VenuesPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: string) => void }) {
   const [venues, setVenues] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
-  const [form, setForm] = useState({ name: "", nameZh: "", description: "", descriptionEn: "", address: "", type: "", capacity: 0 });
+  const [form, setForm] = useState({ name: "", nameZh: "", description: "", descriptionEn: "", address: "", type: "" });
 
   const fetchVenues = useCallback(async () => {
     try {
@@ -1401,7 +1317,7 @@ function VenuesPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: stri
 
   const openAdd = () => {
     setEditing(null);
-    setForm({ name: "", nameZh: "", description: "", descriptionEn: "", address: "", type: "", capacity: 0 });
+    setForm({ name: "", nameZh: "", description: "", descriptionEn: "", address: "", type: "" });
     setShowForm(true);
   };
 
@@ -1414,14 +1330,13 @@ function VenuesPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: stri
       descriptionEn: item.descriptionEn || "",
       address: item.address || "",
       type: item.type || "",
-      capacity: item.capacity || 0,
     });
     setShowForm(true);
   };
 
   const handleSave = async () => {
     try {
-      const payload = { ...form, capacity: parseInt(String(form.capacity)) || 0 };
+      const payload = { ...form };
       if (editing) {
         await fetch(`/api/venues/${editing.id}`, {
           method: "PUT",
@@ -1492,34 +1407,28 @@ function VenuesPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: stri
           <div className="bg-white rounded-xl p-6 w-full max-w-lg space-y-4">
             <h3 className="text-lg font-semibold text-dark">{editing ? "編輯場地" : "新增場地"}</h3>
             <div>
-              <label className="block text-sm font-medium text-dark mb-1">名稱（英文）</label>
+              <label className="block text-sm font-medium text-dark mb-1">Name 名稱（英文）</label>
               <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-dark mb-1">名稱（中文）</label>
+              <label className="block text-sm font-medium text-dark mb-1">Name 名稱（中文）</label>
               <input type="text" value={form.nameZh} onChange={(e) => setForm({ ...form, nameZh: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-dark mb-1">說明（中文）</label>
+              <label className="block text-sm font-medium text-dark mb-1">Description 說明（中文）</label>
               <input type="text" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-dark mb-1">說明（英文）</label>
+              <label className="block text-sm font-medium text-dark mb-1">Description 說明（英文）</label>
               <input type="text" value={form.descriptionEn} onChange={(e) => setForm({ ...form, descriptionEn: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
             </div>
             <div>
               <label className="block text-sm font-medium text-dark mb-1">Google Maps URL</label>
               <input type="text" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-dark mb-1">類型</label>
-                <input type="text" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-dark mb-1">容量</label>
-                <input type="number" value={form.capacity} onChange={(e) => setForm({ ...form, capacity: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-dark mb-1">Type 類型</label>
+              <input type="text" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
             </div>
             <div className="flex justify-end gap-3">
               <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-muted">取消</button>
@@ -1681,7 +1590,7 @@ const fontFamilyOptions = ["Noto Sans TC", "Noto Serif TC", "Inter"];
 const fontWeightOptions = [400, 500, 700, 900];
 
 function StylesPanel({ siteSlug }: { siteSlug: string }) {
-  const [colors, setColors] = useState<ThemeColor[]>(defaultColors);
+  const [colors, setColors] = useState<ThemeColor[]>([]);
   const [typography, setTypography] = useState<TypographyGroup[]>(defaultTypography);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({ "標題": true, "內文": false, "小字": false });
   const [saving, setSaving] = useState(false);
@@ -1708,7 +1617,10 @@ function StylesPanel({ siteSlug }: { siteSlug: string }) {
           try {
             const parsed = JSON.parse(data.theme_colors);
             if (Array.isArray(parsed) && parsed.length > 0) setColors(parsed);
-          } catch { /* use defaults */ }
+            else setColors(defaultColors);
+          } catch { setColors(defaultColors); }
+        } else {
+          setColors(defaultColors);
         }
 
         if (data.theme_typography) {
@@ -2445,7 +2357,6 @@ export default function SiteDashboard() {
     programme: true,
     venues: true,
     speakers: true,
-    papers: true,
   });
 
   // Resolve slug → siteId
@@ -2505,7 +2416,6 @@ export default function SiteDashboard() {
     programme: "議程管理",
     venues: "場地管理",
     speakers: "講者管理",
-    papers: "論文管理",
     styles: "樣式設定",
     settings: "網站設定",
   };
@@ -2618,7 +2528,6 @@ export default function SiteDashboard() {
               {activeTab === "programme" && siteId && <ProgrammePanel siteId={siteId} onToast={setToast} />}
               {activeTab === "venues" && siteId && <VenuesPanel siteId={siteId} onToast={setToast} />}
               {activeTab === "speakers" && siteId && <SpeakersPanel siteId={siteId} onToast={setToast} />}
-              {activeTab === "papers" && siteId && <PapersPanel siteId={siteId} onToast={setToast} />}
               {activeTab === "styles" && <StylesPanel siteSlug={siteSlug} />}
               {activeTab === "settings" && siteId && <SettingsPanel siteId={siteId} onToast={setToast} />}
             </>
