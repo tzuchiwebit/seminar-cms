@@ -1,15 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { getSiteBySlug, getSiteDays, getSiteSpeakers, getSiteSettings, getSiteVenues, getSiteExhibitions } from "@/lib/pb-queries";
 import HomePage from "./HomePage";
 
-export default function Page() {
-  const params = useParams();
+export default function PublicPageClient() {
+  const pathname = usePathname();
   const router = useRouter();
-  const slugArray = params.slug as string[] | undefined;
-  const slug = slugArray?.[0];
+  const slug = pathname === "/" ? null : pathname.replace(/^\//, "").split("/")[0];
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 

@@ -35,7 +35,12 @@
       "Bash(mv \"src/app/admin/[site]/SiteDashboardClient.tsx\" \"src/app/admin/SiteDashboardClient.tsx\")",
       "Bash(rmdir \"src/app/admin/[site]\")",
       "Bash(npm run:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(mv \"src/app/\\(public\\)/[[...slug]]/HomePage.tsx\" \"src/app/\\(public\\)/HomePage.tsx\")",
+      "Bash(mv \"src/app/\\(public\\)/[[...slug]]/PublicPageClient.tsx\" \"src/app/\\(public\\)/PublicPageClient.tsx\")",
+      "Bash(rm \"src/app/\\(public\\)/[[...slug]]/page.tsx\" \"src/app/\\(public\\)/[[...slug]]/layout.tsx\")",
+      "Bash(rmdir \"src/app/\\(public\\)/[[...slug]]\")",
+      "Bash(mv \"src/app/\\(public\\)/HomePage.tsx\" \"src/app/\\(public\\)/[[...slug]]/\")"
     ]
   }
 }
