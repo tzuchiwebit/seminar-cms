@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
 
   Users,
@@ -38,14 +39,13 @@ import {
 /* ═══════════════════════════════════════════
    NAV ITEMS
    ═══════════════════════════════════════════ */
-type Tab = "appearance" | "description" | "tour" | "programme" | "exhibition" | "venues" | "speakers" | "papers" | "styles" | "settings";
+type Tab = "appearance" | "description" | "tour" | "programme" | "venues" | "speakers" | "papers" | "styles" | "settings";
 
 const navItems: { label: string; id: Tab; icon: React.ComponentType<{ className?: string }> }[] = [
   { label: "網站外觀", id: "appearance", icon: Globe },
   { label: "活動簡介", id: "description", icon: AlignLeft },
   { label: "導覽梯次", id: "tour", icon: Eye },
   { label: "議程", id: "programme", icon: Calendar },
-  { label: "展覽", id: "exhibition", icon: Image },
   { label: "場地", id: "venues", icon: MapPin },
   { label: "講者", id: "speakers", icon: Users },
   { label: "論文", id: "papers", icon: FileText },
@@ -56,13 +56,12 @@ const navItems: { label: string; id: Tab; icon: React.ComponentType<{ className?
 /* ═══════════════════════════════════════════
    SECTION VISIBILITY
    ═══════════════════════════════════════════ */
-type SectionKey = "description" | "tour" | "programme" | "exhibition" | "venues" | "speakers" | "papers";
+type SectionKey = "description" | "tour" | "programme" | "venues" | "speakers" | "papers";
 
 const sectionLabels: Record<SectionKey, string> = {
   description: "活動簡介",
   tour: "導覽梯次",
   programme: "議程",
-  exhibition: "展覽",
   venues: "場地",
   speakers: "講者",
   papers: "論文",
@@ -300,7 +299,7 @@ function AppearancePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: 
             <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => handleUpload(e, "banner")} />
           </label>
           <span className="text-xs text-muted">或輸入路徑：</span>
-          <input type="text" value={banner} onChange={(e) => { setBanner(e.target.value); if (!ogImage) setOgImage(e.target.value); }} placeholder="/img/about-banner.jpg" className="flex-1 px-3 py-1.5 border border-border rounded-lg text-sm" />
+          <input type="text" value={banner} onChange={(e) => { setBanner(e.target.value); if (!ogImage) setOgImage(e.target.value); }} className="flex-1 px-3 py-1.5 border border-border rounded-lg text-sm" />
         </div>
       </div>
 
@@ -310,19 +309,19 @@ function AppearancePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: 
         <p className="text-xs text-muted">在 Facebook、LINE、Twitter 等社群平台分享時顯示的資訊</p>
         <div>
           <label className="block text-sm font-medium text-dark mb-1">分享標題（中文）</label>
-          <input type="text" value={ogTitle} onChange={(e) => setOgTitle(e.target.value)} placeholder="慈濟全球共善學思會" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+          <input type="text" value={ogTitle} onChange={(e) => setOgTitle(e.target.value)} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
         </div>
         <div>
           <label className="block text-sm font-medium text-dark mb-1">分享標題（英文）</label>
-          <input type="text" value={ogTitleEn} onChange={(e) => setOgTitleEn(e.target.value)} placeholder="Tzu Chi Global Symposium" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+          <input type="text" value={ogTitleEn} onChange={(e) => setOgTitleEn(e.target.value)} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
         </div>
         <div>
           <label className="block text-sm font-medium text-dark mb-1">分享說明（中文）</label>
-          <textarea rows={2} value={ogDescription} onChange={(e) => setOgDescription(e.target.value)} placeholder="應用佛法與當代菩薩道：前瞻佛教的未來" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+          <textarea rows={2} value={ogDescription} onChange={(e) => setOgDescription(e.target.value)} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
         </div>
         <div>
           <label className="block text-sm font-medium text-dark mb-1">分享說明（英文）</label>
-          <textarea rows={2} value={ogDescriptionEn} onChange={(e) => setOgDescriptionEn(e.target.value)} placeholder="Applied Buddhism and Contemporary Bodhisattva Path" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+          <textarea rows={2} value={ogDescriptionEn} onChange={(e) => setOgDescriptionEn(e.target.value)} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
         </div>
         <div>
           <label className="block text-sm font-medium text-dark mb-1">分享圖片 OG Image</label>
@@ -337,7 +336,7 @@ function AppearancePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: 
               上傳圖片
               <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => handleUpload(e, "og")} />
             </label>
-            <input type="text" value={ogImage} onChange={(e) => setOgImage(e.target.value)} placeholder="/img/og-image.jpg" className="flex-1 px-3 py-1.5 border border-border rounded-lg text-sm" />
+            <input type="text" value={ogImage} onChange={(e) => setOgImage(e.target.value)} className="flex-1 px-3 py-1.5 border border-border rounded-lg text-sm" />
           </div>
         </div>
 
@@ -443,20 +442,20 @@ function DescriptionPanel({ siteId, onToast }: { siteId: number; onToast?: (msg:
         <div className="grid grid-cols-2 gap-5">
           <div>
             <label className="block text-sm font-medium text-dark mb-1">標題（中文）</label>
-            <input type="text" value={headlineZh} onChange={(e) => setHeadlineZh(e.target.value)} placeholder="一場探索佛教未來的學術盛會" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+            <input type="text" value={headlineZh} onChange={(e) => setHeadlineZh(e.target.value)} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
           </div>
           <div>
             <label className="block text-sm font-medium text-dark mb-1">標題（英文）</label>
-            <input type="text" value={headlineEn} onChange={(e) => setHeadlineEn(e.target.value)} placeholder="An Academic Symposium Exploring the Future of Buddhism" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+            <input type="text" value={headlineEn} onChange={(e) => setHeadlineEn(e.target.value)} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
           </div>
         </div>
         <div>
           <label className="block text-sm font-medium text-dark mb-1">說明（中文）</label>
-          <textarea rows={5} value={bodyZh} onChange={(e) => setBodyZh(e.target.value)} placeholder="請輸入活動說明..." className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+          <textarea rows={5} value={bodyZh} onChange={(e) => setBodyZh(e.target.value)} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
         </div>
         <div>
           <label className="block text-sm font-medium text-dark mb-1">說明（英文）</label>
-          <textarea rows={5} value={bodyEn} onChange={(e) => setBodyEn(e.target.value)} placeholder="Enter event description..." className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+          <textarea rows={5} value={bodyEn} onChange={(e) => setBodyEn(e.target.value)} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
         </div>
       </div>
 
@@ -496,7 +495,7 @@ function DescriptionPanel({ siteId, onToast }: { siteId: number; onToast?: (msg:
                   type="text"
                   value={item.label}
                   onChange={(e) => updateHighlight(index, "label", e.target.value)}
-                  placeholder="6 場學術論文發表"
+                 
                   className="w-full px-3 py-1.5 border border-border rounded-lg text-sm"
                 />
               </div>
@@ -506,7 +505,7 @@ function DescriptionPanel({ siteId, onToast }: { siteId: number; onToast?: (msg:
                   type="text"
                   value={item.labelEn || ""}
                   onChange={(e) => updateHighlight(index, "labelEn", e.target.value)}
-                  placeholder="6 Paper Sessions"
+                 
                   className="w-full px-3 py-1.5 border border-border rounded-lg text-sm"
                 />
               </div>
@@ -665,24 +664,24 @@ function SpeakersPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: st
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-dark mb-1">姓名（英文）</label>
-                <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Rey-Sheng Her" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-dark mb-1">姓名（中文）</label>
-                <input type="text" value={form.nameCn} onChange={(e) => setForm({ ...form, nameCn: e.target.value })} placeholder="何日生" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                <input type="text" value={form.nameCn} onChange={(e) => setForm({ ...form, nameCn: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
               </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-dark mb-1">所屬單位 Affiliation</label>
-              <input type="text" value={form.affiliation} onChange={(e) => setForm({ ...form, affiliation: e.target.value })} placeholder="Harvard University" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+              <input type="text" value={form.affiliation} onChange={(e) => setForm({ ...form, affiliation: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
             </div>
             <div>
               <label className="block text-sm font-medium text-dark mb-1">職稱 Title</label>
-              <input type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Professor, Department of Religion" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+              <input type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
             </div>
             <div>
               <label className="block text-sm font-medium text-dark mb-1">簡介 Bio</label>
-              <textarea rows={3} value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} placeholder="請輸入講者簡介..." className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+              <textarea rows={3} value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
             </div>
             <div>
               <label className="block text-sm font-medium text-dark mb-1">狀態</label>
@@ -709,6 +708,17 @@ function ProgrammePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: s
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState({ sessionType: "keynote", titleZh: "", titleEn: "", subtitleZh: "", subtitleEn: "", startTime: "", duration: 30, venue: "", sortOrder: 0 });
+  const [allSpeakers, setAllSpeakers] = useState<any[]>([]);
+
+  // Session speakers/papers editing
+  const [sessionModerators, setSessionModerators] = useState<number[]>([]);
+  const [sessionSpeakers, setSessionSpeakersList] = useState<number[]>([]);
+  const [sessionDiscussants, setSessionDiscussants] = useState<number[]>([]);
+
+  // Day management
+  const [showDayForm, setShowDayForm] = useState(false);
+  const [editingDay, setEditingDay] = useState<any>(null);
+  const [dayForm, setDayForm] = useState({ date: "", titleZh: "", titleEn: "" });
 
   const fetchProgramme = useCallback(async () => {
     try {
@@ -717,16 +727,76 @@ function ProgrammePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: s
       const data = await res.json();
       setDays(data);
     } catch { /* ignore */ }
+    // Also fetch all speakers for assignment
+    try {
+      const spkRes = await fetch(`/api/speakers?siteId=${siteId}`);
+      if (spkRes.ok) setAllSpeakers(await spkRes.json());
+    } catch { /* ignore */ }
   }, [siteId]);
 
   useEffect(() => { fetchProgramme(); }, [fetchProgramme]);
 
   const day = days[activeDay];
 
+  // Day CRUD
+  const openAddDay = () => {
+    setEditingDay(null);
+    setDayForm({ date: "", titleZh: "", titleEn: "" });
+    setShowDayForm(true);
+  };
+
+  const openEditDay = (d: any) => {
+    setEditingDay(d);
+    setDayForm({
+      date: d.date ? new Date(d.date).toISOString().slice(0, 10) : "",
+      titleZh: d.titleZh || "",
+      titleEn: d.titleEn || "",
+    });
+    setShowDayForm(true);
+  };
+
+  const handleSaveDay = async () => {
+    try {
+      if (editingDay) {
+        await fetch(`/api/days/${editingDay.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(dayForm),
+        });
+      } else {
+        await fetch("/api/programme", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "day", siteId, dayNumber: days.length + 1, ...dayForm }),
+        });
+      }
+      setShowDayForm(false);
+      fetchProgramme();
+      onToast?.(editingDay ? "日程已更新" : "日程已新增");
+    } catch {
+      onToast?.("儲存失敗");
+    }
+  };
+
+  const handleDeleteDay = async (d: any) => {
+    if (!confirm(`確定刪除 Day ${d.dayNumber}？所有場次也會一起刪除。`)) return;
+    try {
+      await fetch(`/api/days/${d.id}`, { method: "DELETE" });
+      if (activeDay >= days.length - 1) setActiveDay(Math.max(0, days.length - 2));
+      fetchProgramme();
+      onToast?.("日程已刪除");
+    } catch {
+      onToast?.("刪除失敗");
+    }
+  };
+
   const openAdd = () => {
     if (!day) return;
     setEditing(null);
     setForm({ sessionType: "keynote", titleZh: "", titleEn: "", subtitleZh: "", subtitleEn: "", startTime: "", duration: 30, venue: "", sortOrder: (day.sessions?.length || 0) + 1 });
+    setSessionModerators([]);
+    setSessionSpeakersList([]);
+    setSessionDiscussants([]);
     setShowForm(true);
   };
 
@@ -743,6 +813,11 @@ function ProgrammePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: s
       venue: session.venue || "",
       sortOrder: session.sortOrder || 0,
     });
+    // Load session speaker assignments
+    const spkrs = session.sessionSpeakers || [];
+    setSessionModerators(spkrs.filter((ss: any) => ss.role === "moderator").map((ss: any) => ss.speaker?.id).filter(Boolean));
+    setSessionSpeakersList(spkrs.filter((ss: any) => ss.role === "speaker").map((ss: any) => ss.speaker?.id).filter(Boolean));
+    setSessionDiscussants(spkrs.filter((ss: any) => ss.role === "discussant").map((ss: any) => ss.speaker?.id).filter(Boolean));
     setShowForm(true);
   };
 
@@ -752,7 +827,14 @@ function ProgrammePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: s
         await fetch(`/api/sessions/${editing.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
+          body: JSON.stringify({
+            ...form,
+            speakerAssignments: {
+              moderators: sessionModerators,
+              speakers: sessionSpeakers,
+              discussants: sessionDiscussants,
+            },
+          }),
         });
       } else {
         await fetch("/api/programme", {
@@ -798,22 +880,92 @@ function ProgrammePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: s
 
   return (
     <>
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex gap-2">
-          {days.map((d: any, i: number) => (
-            <button key={d.id || i} onClick={() => setActiveDay(i)} className={`px-4 py-2 text-sm font-medium rounded-lg ${activeDay === i ? "bg-dark text-cream" : "bg-white border border-border text-muted hover:text-dark"}`}>
-              {d.label || d.title || `Day ${i + 1}`} {d.date ? `· ${new Date(d.date).toLocaleDateString("zh-TW", { month: "numeric", day: "numeric" })}` : ""}
-            </button>
-          ))}
+      {/* ── Day Management ── */}
+      <div className="mb-6 p-5 bg-white rounded-xl border border-border">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-dark uppercase tracking-wider">日程</h3>
+          <button onClick={openAddDay} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-dashed border-gold text-gold rounded-lg hover:bg-gold/5 transition-colors">
+            <Calendar className="w-3.5 h-3.5" /> 新增日程
+          </button>
         </div>
-        <button onClick={openAdd} className="flex items-center gap-1.5 px-4 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light transition-colors">
-          <Plus className="w-4 h-4" /> 新增場次
-        </button>
+        {days.length === 0 ? (
+          <div className="text-center py-6">
+            <Calendar className="w-8 h-8 text-muted/30 mx-auto mb-2" />
+            <p className="text-sm text-muted">尚無日程，請先新增日程</p>
+          </div>
+        ) : (
+          <div className="flex gap-2 flex-wrap">
+            {days.map((d: any, i: number) => (
+              <button key={d.id || i} onClick={() => setActiveDay(i)} className={`px-4 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeDay === i ? "bg-dark text-cream" : "bg-cream border border-border text-muted hover:text-dark hover:border-dark/20"}`}>
+                <span>Day {d.dayNumber || i + 1}</span>
+                {d.date && <span className="ml-1.5 opacity-60">· {new Date(d.date).toLocaleDateString("zh-TW", { month: "numeric", day: "numeric" })}</span>}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {day && day.theme && (
-        <div className="mb-4 p-4 bg-cream-dark rounded-lg">
-          <p className="text-sm text-muted font-medium">{day.theme}</p>
+      {/* ── Selected Day Info ── */}
+      {day && (
+        <div className="mb-4 px-5 py-4 bg-white rounded-xl border border-gold/20 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-lg bg-gold/10 flex items-center justify-center shrink-0">
+              <span className="font-inter text-gold font-bold text-sm">{day.dayNumber}</span>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-dark">
+                {day.titleEn || day.titleZh || `Day ${day.dayNumber}`}
+              </p>
+              <p className="text-xs text-muted mt-0.5">
+                {day.titleZh && day.titleEn && <span>{day.titleZh} · </span>}
+                {day.date && new Date(day.date).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-1">
+            <button onClick={() => openEditDay(day)} className="p-1.5 text-muted hover:text-gold rounded-md hover:bg-gold/10" title="編輯日程"><Pencil className="w-4 h-4" /></button>
+            <button onClick={() => handleDeleteDay(day)} className="p-1.5 text-muted hover:text-red-600 rounded-md hover:bg-red-50" title="刪除日程"><Trash2 className="w-4 h-4" /></button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Sessions (場次) in selected day ── */}
+      {day && (
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold text-dark uppercase tracking-wider">場次</h3>
+          <button onClick={openAdd} className="flex items-center gap-1.5 px-4 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light transition-colors">
+            <Plus className="w-4 h-4" /> 新增場次
+          </button>
+        </div>
+      )}
+
+      {/* Day form modal */}
+      {showDayForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowDayForm(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-dark">{editingDay ? "編輯日程" : "新增日程"}</h3>
+              <button onClick={() => setShowDayForm(false)} className="p-1.5 text-muted hover:text-dark"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-muted mb-1">日期</label>
+                <input type="date" value={dayForm.date} onChange={(e) => setDayForm({ ...dayForm, date: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted mb-1">主題（英文）</label>
+                <input type="text" value={dayForm.titleEn} onChange={(e) => setDayForm({ ...dayForm, titleEn: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted mb-1">主題（中文）</label>
+                <input type="text" value={dayForm.titleZh} onChange={(e) => setDayForm({ ...dayForm, titleZh: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-border flex justify-end gap-3 bg-cream/30">
+              <button onClick={() => setShowDayForm(false)} className="px-4 py-2 text-sm text-muted border border-border rounded-lg hover:bg-cream">取消</button>
+              <button onClick={handleSaveDay} disabled={!dayForm.date} className="px-5 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light disabled:opacity-50">儲存</button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -927,7 +1079,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: s
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-muted mb-1">開始時間</label>
-                  <input type="text" placeholder="09:00" value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                  <input type="text" value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
@@ -945,11 +1097,11 @@ function ProgrammePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: s
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-muted mb-1">標題（英文）</label>
-                  <input type="text" value={form.titleEn} onChange={(e) => setForm({ ...form, titleEn: e.target.value })} placeholder="Applied Buddhism and the Bodhisattva Path" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                  <input type="text" value={form.titleEn} onChange={(e) => setForm({ ...form, titleEn: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-muted mb-1">標題（中文）</label>
-                  <input type="text" value={form.titleZh} onChange={(e) => setForm({ ...form, titleZh: e.target.value })} placeholder="應用佛教與菩薩道" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                  <input type="text" value={form.titleZh} onChange={(e) => setForm({ ...form, titleZh: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
                 </div>
               </div>
 
@@ -957,19 +1109,104 @@ function ProgrammePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: s
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-muted mb-1">說明（英文）</label>
-                  <textarea rows={3} value={form.subtitleEn} onChange={(e) => setForm({ ...form, subtitleEn: e.target.value })} placeholder="Session description, speaker list..." className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                  <textarea rows={3} value={form.subtitleEn} onChange={(e) => setForm({ ...form, subtitleEn: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-muted mb-1">說明（中文）</label>
-                  <textarea rows={3} value={form.subtitleZh} onChange={(e) => setForm({ ...form, subtitleZh: e.target.value })} placeholder="場次說明、講者列表..." className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                  <textarea rows={3} value={form.subtitleZh} onChange={(e) => setForm({ ...form, subtitleZh: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
                 </div>
               </div>
 
               {/* Row 4: Venue */}
               <div>
                 <label className="block text-xs font-medium text-muted mb-1">場地</label>
-                <input type="text" value={form.venue} onChange={(e) => setForm({ ...form, venue: e.target.value })} placeholder="Harvard Faculty Club" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                <input type="text" value={form.venue} onChange={(e) => setForm({ ...form, venue: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
               </div>
+
+              {/* Row 5: Speaker Assignments */}
+              {editing && allSpeakers.length > 0 && (
+                <div className="border-t border-border pt-5 space-y-4">
+                  <h4 className="text-sm font-semibold text-dark">講者分配</h4>
+
+                  {/* Moderator */}
+                  <div>
+                    <label className="block text-xs font-medium text-gold mb-1.5">Moderator 主持人</label>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {sessionModerators.map((id) => {
+                        const spk = allSpeakers.find((s: any) => s.id === id);
+                        return spk ? (
+                          <span key={id} className="inline-flex items-center gap-1 px-2 py-1 bg-gold/10 text-gold text-xs rounded-full">
+                            {spk.name}
+                            <button onClick={() => setSessionModerators(sessionModerators.filter(i => i !== id))} className="hover:text-red-500">&times;</button>
+                          </span>
+                        ) : null;
+                      })}
+                    </div>
+                    <select
+                      value=""
+                      onChange={(e) => { if (e.target.value) setSessionModerators([...sessionModerators, parseInt(e.target.value)]); }}
+                      className="w-full px-3 py-1.5 border border-border rounded-lg text-xs bg-white"
+                    >
+                      <option value="">+ 選擇主持人</option>
+                      {allSpeakers.filter((s: any) => !sessionModerators.includes(s.id)).map((s: any) => (
+                        <option key={s.id} value={s.id}>{s.name}{s.nameCn ? ` (${s.nameCn})` : ""}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Speakers */}
+                  <div>
+                    <label className="block text-xs font-medium text-dark mb-1.5">Speakers 發表人</label>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {sessionSpeakers.map((id) => {
+                        const spk = allSpeakers.find((s: any) => s.id === id);
+                        return spk ? (
+                          <span key={id} className="inline-flex items-center gap-1 px-2 py-1 bg-dark/10 text-dark text-xs rounded-full">
+                            {spk.name}
+                            <button onClick={() => setSessionSpeakersList(sessionSpeakers.filter(i => i !== id))} className="hover:text-red-500">&times;</button>
+                          </span>
+                        ) : null;
+                      })}
+                    </div>
+                    <select
+                      value=""
+                      onChange={(e) => { if (e.target.value) setSessionSpeakersList([...sessionSpeakers, parseInt(e.target.value)]); }}
+                      className="w-full px-3 py-1.5 border border-border rounded-lg text-xs bg-white"
+                    >
+                      <option value="">+ 選擇發表人</option>
+                      {allSpeakers.filter((s: any) => !sessionSpeakers.includes(s.id)).map((s: any) => (
+                        <option key={s.id} value={s.id}>{s.name}{s.nameCn ? ` (${s.nameCn})` : ""}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Commentators */}
+                  <div>
+                    <label className="block text-xs font-medium text-muted mb-1.5">Commentators 與談人</label>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {sessionDiscussants.map((id) => {
+                        const spk = allSpeakers.find((s: any) => s.id === id);
+                        return spk ? (
+                          <span key={id} className="inline-flex items-center gap-1 px-2 py-1 bg-muted/10 text-muted text-xs rounded-full">
+                            {spk.name}
+                            <button onClick={() => setSessionDiscussants(sessionDiscussants.filter(i => i !== id))} className="hover:text-red-500">&times;</button>
+                          </span>
+                        ) : null;
+                      })}
+                    </div>
+                    <select
+                      value=""
+                      onChange={(e) => { if (e.target.value) setSessionDiscussants([...sessionDiscussants, parseInt(e.target.value)]); }}
+                      className="w-full px-3 py-1.5 border border-border rounded-lg text-xs bg-white"
+                    >
+                      <option value="">+ 選擇與談人</option>
+                      {allSpeakers.filter((s: any) => !sessionDiscussants.includes(s.id)).map((s: any) => (
+                        <option key={s.id} value={s.id}>{s.name}{s.nameCn ? ` (${s.nameCn})` : ""}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Footer */}
@@ -1114,15 +1351,15 @@ function PapersPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: stri
             <h3 className="text-lg font-semibold text-dark">{editing ? "編輯論文" : "新增論文"}</h3>
             <div>
               <label className="block text-sm font-medium text-dark mb-1">標題（中文）</label>
-              <input type="text" value={form.titleZh} onChange={(e) => setForm({ ...form, titleZh: e.target.value })} placeholder="佛教平等觀的理論意涵與當代意義" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+              <input type="text" value={form.titleZh} onChange={(e) => setForm({ ...form, titleZh: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
             </div>
             <div>
               <label className="block text-sm font-medium text-dark mb-1">標題（英文）</label>
-              <input type="text" value={form.titleEn} onChange={(e) => setForm({ ...form, titleEn: e.target.value })} placeholder="The Theoretical Implication of the Buddhist Concept of Equality" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+              <input type="text" value={form.titleEn} onChange={(e) => setForm({ ...form, titleEn: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
             </div>
             <div>
               <label className="block text-sm font-medium text-dark mb-1">摘要</label>
-              <textarea rows={3} value={form.abstract} onChange={(e) => setForm({ ...form, abstract: e.target.value })} placeholder="請輸入論文摘要..." className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+              <textarea rows={3} value={form.abstract} onChange={(e) => setForm({ ...form, abstract: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
             </div>
             <div>
               <label className="block text-sm font-medium text-dark mb-1">狀態</label>
@@ -1144,126 +1381,6 @@ function PapersPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: stri
   );
 }
 
-function ExhibitionPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: string) => void }) {
-  const [exhibition, setExhibition] = useState<any>(null);
-  const [form, setForm] = useState({ titleZh: "", titleEn: "", description: "", descriptionEn: "", startDate: "", endDate: "", venue: "" });
-  const [saving, setSaving] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    async function load() {
-      try {
-        const [exRes, settingsRes] = await Promise.all([
-          fetch(`/api/exhibitions?siteId=${siteId}`),
-          fetch(`/api/sites/${siteId}/settings`),
-        ]);
-        let descEn = "";
-        if (settingsRes.ok) {
-          const settings = await settingsRes.json();
-          if (settings.exhibition_description_en) descEn = settings.exhibition_description_en;
-        }
-        if (exRes.ok) {
-          const data = await exRes.json();
-          const ex = Array.isArray(data) ? data[0] : data;
-          if (ex) {
-            setExhibition(ex);
-            setForm({
-              titleZh: ex.titleZh || ex.title || "",
-              titleEn: ex.titleEn || "",
-              description: ex.description || "",
-              descriptionEn: descEn,
-              startDate: ex.startDate ? ex.startDate.slice(0, 10) : "",
-              endDate: ex.endDate ? ex.endDate.slice(0, 10) : "",
-              venue: ex.venue || "",
-            });
-          }
-        }
-      } catch { /* ignore */ }
-      setLoaded(true);
-    }
-    load();
-  }, [siteId]);
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const { descriptionEn, ...exForm } = form;
-      if (exhibition) {
-        await fetch(`/api/exhibitions/${exhibition.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(exForm),
-        });
-      } else {
-        const res = await fetch("/api/exhibitions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...exForm, siteId }),
-        });
-        if (res.ok) {
-          const created = await res.json();
-          setExhibition(created);
-        }
-      }
-      // Save English description to site settings
-      await fetch(`/api/sites/${siteId}/settings`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: "exhibition_description_en", value: descriptionEn }),
-      });
-      onToast?.("儲存成功");
-    } catch (e) {
-      console.error("Failed to save exhibition", e);
-      onToast?.("儲存失敗，請重試");
-    }
-    setSaving(false);
-  };
-
-  if (!loaded) return <div className="flex items-center justify-center py-20"><div className="text-sm text-muted">載入中...</div></div>;
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-dark">展覽管理</h2>
-        <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light transition-colors disabled:opacity-50">
-          {saving ? "儲存中..." : "儲存變更"}
-        </button>
-      </div>
-      <div className="bg-white rounded-xl border border-border p-6 space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-dark mb-1">展覽名稱（中文）</label>
-          <input type="text" value={form.titleZh} onChange={(e) => setForm({ ...form, titleZh: e.target.value })} placeholder="明心" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-dark mb-1">展覽名稱（英文）</label>
-          <input type="text" value={form.titleEn} onChange={(e) => setForm({ ...form, titleEn: e.target.value })} placeholder="Journey to Enlightenment" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-dark mb-1">展覽說明（中文）</label>
-          <textarea rows={4} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="請輸入展覽說明..." className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-dark mb-1">展覽說明（英文）</label>
-          <textarea rows={4} value={form.descriptionEn} onChange={(e) => setForm({ ...form, descriptionEn: e.target.value })} placeholder="Enter exhibition description..." className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-dark mb-1">開始日期</label>
-            <input type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-dark mb-1">結束日期</label>
-            <input type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
-          </div>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-dark mb-1">展覽場地</label>
-          <input type="text" value={form.venue} onChange={(e) => setForm({ ...form, venue: e.target.value })} placeholder="Harvard CAMLab Cave" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function VenuesPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: string) => void }) {
   const [venues, setVenues] = useState<any[]>([]);
@@ -1376,32 +1493,32 @@ function VenuesPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: stri
             <h3 className="text-lg font-semibold text-dark">{editing ? "編輯場地" : "新增場地"}</h3>
             <div>
               <label className="block text-sm font-medium text-dark mb-1">名稱（英文）</label>
-              <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Student Organization Center at Hilles" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+              <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
             </div>
             <div>
               <label className="block text-sm font-medium text-dark mb-1">名稱（中文）</label>
-              <input type="text" value={form.nameZh} onChange={(e) => setForm({ ...form, nameZh: e.target.value })} placeholder="哈佛大學學生社團中心" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+              <input type="text" value={form.nameZh} onChange={(e) => setForm({ ...form, nameZh: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
             </div>
             <div>
               <label className="block text-sm font-medium text-dark mb-1">說明（中文）</label>
-              <input type="text" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="學術發表、論壇及交流活動之主場地。" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+              <input type="text" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
             </div>
             <div>
               <label className="block text-sm font-medium text-dark mb-1">說明（英文）</label>
-              <input type="text" value={form.descriptionEn} onChange={(e) => setForm({ ...form, descriptionEn: e.target.value })} placeholder="Main venue for academic sessions and forums." className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+              <input type="text" value={form.descriptionEn} onChange={(e) => setForm({ ...form, descriptionEn: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
             </div>
             <div>
               <label className="block text-sm font-medium text-dark mb-1">Google Maps URL</label>
-              <input type="text" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="https://maps.google.com/..." className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+              <input type="text" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-dark mb-1">類型</label>
-                <input type="text" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} placeholder="main" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                <input type="text" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-dark mb-1">容量</label>
-                <input type="number" value={form.capacity} onChange={(e) => setForm({ ...form, capacity: parseInt(e.target.value) || 0 })} placeholder="300" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                <input type="number" value={form.capacity} onChange={(e) => setForm({ ...form, capacity: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
               </div>
             </div>
             <div className="flex justify-end gap-3">
@@ -1694,7 +1811,7 @@ function StylesPanel({ siteSlug }: { siteSlug: string }) {
                 type="text"
                 value={color.label}
                 onChange={(e) => updateColor(index, "label", e.target.value)}
-                placeholder="名稱"
+               
                 className="w-32 px-3 py-2 border border-border rounded-lg text-sm"
               />
               <div className="flex items-center gap-2 flex-1">
@@ -1708,7 +1825,7 @@ function StylesPanel({ siteSlug }: { siteSlug: string }) {
                   type="text"
                   value={color.hex}
                   onChange={(e) => updateColor(index, "hex", e.target.value)}
-                  placeholder="#000000"
+                 
                   className="w-28 px-3 py-2 border border-border rounded-lg text-sm font-mono"
                 />
                 <div
@@ -1932,7 +2049,7 @@ function TourPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: string
             rows={2}
             value={headerText}
             onChange={(e) => setHeaderText(e.target.value)}
-            placeholder="每梯次七十五分鐘..."
+           
             className="w-full px-3 py-2 border border-border rounded-lg text-sm"
           />
         </div>
@@ -1942,7 +2059,7 @@ function TourPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: string
             rows={2}
             value={headerEn}
             onChange={(e) => setHeaderEn(e.target.value)}
-            placeholder="75 minutes per group..."
+           
             className="w-full px-3 py-2 border border-border rounded-lg text-sm"
           />
         </div>
@@ -1968,29 +2085,29 @@ function TourPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: string
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs text-muted mb-1">名稱（中文）</label>
-                  <input type="text" value={tour.title} onChange={(e) => updateTour(index, "title", e.target.value)} placeholder="慈濟台灣與美國志工" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                  <input type="text" value={tour.title} onChange={(e) => updateTour(index, "title", e.target.value)} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
                 </div>
                 <div>
                   <label className="block text-xs text-muted mb-1">說明（中文）</label>
-                  <input type="text" value={tour.sub} onChange={(e) => updateTour(index, "sub", e.target.value)} placeholder="二十人一梯次，75 分鐘" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                  <input type="text" value={tour.sub} onChange={(e) => updateTour(index, "sub", e.target.value)} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
                 </div>
                 <div>
                   <label className="block text-xs text-muted mb-1">標籤（中文）</label>
-                  <input type="text" value={tour.tag} onChange={(e) => updateTour(index, "tag", e.target.value)} placeholder="中文導覽" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                  <input type="text" value={tour.tag} onChange={(e) => updateTour(index, "tag", e.target.value)} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs text-muted mb-1">名稱（英文）</label>
-                  <input type="text" value={tour.titleEn || ""} onChange={(e) => updateTour(index, "titleEn", e.target.value)} placeholder="Tzu Chi Volunteers" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                  <input type="text" value={tour.titleEn || ""} onChange={(e) => updateTour(index, "titleEn", e.target.value)} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
                 </div>
                 <div>
                   <label className="block text-xs text-muted mb-1">說明（英文）</label>
-                  <input type="text" value={tour.subEn || ""} onChange={(e) => updateTour(index, "subEn", e.target.value)} placeholder="20 people per group, 75 min" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                  <input type="text" value={tour.subEn || ""} onChange={(e) => updateTour(index, "subEn", e.target.value)} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
                 </div>
                 <div>
                   <label className="block text-xs text-muted mb-1">標籤（英文）</label>
-                  <input type="text" value={tour.tagEn || ""} onChange={(e) => updateTour(index, "tagEn", e.target.value)} placeholder="English Tour" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                  <input type="text" value={tour.tagEn || ""} onChange={(e) => updateTour(index, "tagEn", e.target.value)} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
                 </div>
               </div>
             </div>
@@ -2189,7 +2306,7 @@ function SettingsPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: st
       <div className="bg-white rounded-xl border border-border p-6 space-y-4">
         <div>
           <label className="block text-sm font-medium text-dark mb-1">網站名稱</label>
-          <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="全球共善學思會" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+          <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
         </div>
         <div>
           <label className="block text-sm font-medium text-dark mb-1">網站語言</label>
@@ -2316,6 +2433,7 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
 
 export default function SiteDashboard() {
   const params = useParams();
+  const { data: session } = useSession();
   const siteSlug = params.site as string;
   const [activeTab, setActiveTab] = useState<Tab>("description");
   const [siteId, setSiteId] = useState<number | null>(null);
@@ -2325,7 +2443,6 @@ export default function SiteDashboard() {
     description: true,
     tour: true,
     programme: true,
-    exhibition: true,
     venues: true,
     speakers: true,
     papers: true,
@@ -2386,7 +2503,6 @@ export default function SiteDashboard() {
     description: "活動簡介",
     tour: "導覽梯次",
     programme: "議程管理",
-    exhibition: "展覽管理",
     venues: "場地管理",
     speakers: "講者管理",
     papers: "論文管理",
@@ -2441,10 +2557,16 @@ export default function SiteDashboard() {
 
         <div className="px-5 py-4 border-t border-white/10">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-gold/80 flex items-center justify-center text-white text-sm font-medium">A</div>
+            {session?.user?.image ? (
+              <img src={session.user.image} alt="" className="w-8 h-8 rounded-full shrink-0" />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-gold/80 flex items-center justify-center text-white text-sm font-medium shrink-0">
+                {session?.user?.name?.charAt(0) || session?.user?.email?.charAt(0) || "?"}
+              </div>
+            )}
             <div className="min-w-0">
-              <div className="text-white text-sm truncate">Admin User</div>
-              <div className="text-white/40 text-xs truncate">admin@tzuchi.org</div>
+              <div className="text-white text-sm truncate">{session?.user?.name || "使用者"}</div>
+              <div className="text-white/40 text-xs truncate">{session?.user?.email || ""}</div>
             </div>
           </div>
         </div>
@@ -2461,7 +2583,7 @@ export default function SiteDashboard() {
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 bg-cream border border-border rounded-lg px-3 py-2">
               <Search className="w-4 h-4 text-muted" />
-              <input type="text" placeholder="搜尋..." className="text-sm outline-none bg-transparent w-32" />
+              <input type="text" className="text-sm outline-none bg-transparent w-32" />
             </div>
           </div>
         </div>
@@ -2494,7 +2616,6 @@ export default function SiteDashboard() {
               {activeTab === "description" && siteId && <DescriptionPanel siteId={siteId} onToast={setToast} />}
               {activeTab === "tour" && siteId && <TourPanel siteId={siteId} onToast={setToast} />}
               {activeTab === "programme" && siteId && <ProgrammePanel siteId={siteId} onToast={setToast} />}
-              {activeTab === "exhibition" && siteId && <ExhibitionPanel siteId={siteId} onToast={setToast} />}
               {activeTab === "venues" && siteId && <VenuesPanel siteId={siteId} onToast={setToast} />}
               {activeTab === "speakers" && siteId && <SpeakersPanel siteId={siteId} onToast={setToast} />}
               {activeTab === "papers" && siteId && <PapersPanel siteId={siteId} onToast={setToast} />}
