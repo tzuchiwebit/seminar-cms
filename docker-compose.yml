@@ -16,8 +16,22 @@ services:
       timeout: 5s
       retries: 5
 
+  migrate:
+    build:
+      context: .
+      target: migrator
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/seminar_cms
+    depends_on:
+      db:
+        condition: service_healthy
+    command: npx prisma db push --skip-generate
+    restart: "no"
+
   app:
-    build: .
+    build:
+      context: .
+      target: runner
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -31,6 +45,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
 volumes:
   pgdata:

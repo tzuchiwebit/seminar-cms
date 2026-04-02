@@ -26,15 +26,14 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copy standalone build
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
+# Copy public assets first
 COPY --from=builder /app/public ./public
 
-# Copy Prisma files for migrations
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+# Copy standalone build (includes server.js + node_modules)
+COPY --from=builder /app/.next/standalone ./
+
+# Copy static files
+COPY --from=builder /app/.next/static ./.next/static
 
 # Create uploads directory
 RUN mkdir -p /app/uploads && chown nextjs:nodejs /app/uploads
@@ -46,3 +45,7 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 CMD ["node", "server.js"]
+
+# ── Stage 4: Migration runner (used by docker compose) ──
+FROM builder AS migrator
+WORKDIR /app

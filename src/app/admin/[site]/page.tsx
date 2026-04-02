@@ -898,66 +898,86 @@ function ProgrammePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: s
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl w-[90vw] max-w-7xl max-h-[85vh] overflow-hidden flex flex-col">
-            <div className="p-8 pr-10 space-y-4 overflow-y-auto flex-1">
-            <h3 className="text-lg font-semibold text-dark">{editing ? "編輯場次" : "新增場次"}</h3>
-            <div>
-              <label className="block text-sm font-medium text-dark mb-1">場次類型</label>
-              <select value={form.sessionType} onChange={(e) => setForm({ ...form, sessionType: e.target.value })} className="w-full px-3 py-2 pr-8 border border-border rounded-lg text-sm bg-white appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%235A554B%22%20d%3D%22M6%208L1%203h10z%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]">
-                <option value="registration">報到</option>
-                <option value="opening">開幕典禮</option>
-                <option value="keynote">專題演講</option>
-                <option value="photo">大合照</option>
-                <option value="paper_session">論文發表</option>
-                <option value="roundtable">圓桌論壇</option>
-                <option value="break">休息</option>
-                <option value="dinner">晚宴</option>
-                <option value="closing">閉幕</option>
-                <option value="exhibition">展覽</option>
-              </select>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowForm(false)}>
+          <div className="bg-white rounded-2xl w-[90vw] max-w-5xl max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="px-8 py-5 border-b border-border flex items-center justify-between shrink-0">
+              <h3 className="text-lg font-semibold text-dark">{editing ? "編輯場次" : "新增場次"}</h3>
+              <button onClick={() => setShowForm(false)} className="p-1.5 text-muted hover:text-dark"><X className="w-5 h-5" /></button>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-dark mb-1">標題（中文）</label>
-              <input type="text" value={form.titleZh} onChange={(e) => setForm({ ...form, titleZh: e.target.value })} placeholder="應用佛教與菩薩道" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark mb-1">標題（英文）</label>
-              <input type="text" value={form.titleEn} onChange={(e) => setForm({ ...form, titleEn: e.target.value })} placeholder="Applied Buddhism and the Bodhisattva Path" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark mb-1">說明（中文）</label>
-              <textarea rows={2} value={form.subtitleZh} onChange={(e) => setForm({ ...form, subtitleZh: e.target.value })} placeholder="場次說明或講者列表..." className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark mb-1">說明（英文）</label>
-              <textarea rows={2} value={form.subtitleEn} onChange={(e) => setForm({ ...form, subtitleEn: e.target.value })} placeholder="Session description or speaker list..." className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-dark mb-1">開始時間</label>
-                <input type="text" placeholder="09:00" value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+
+            {/* Body */}
+            <div className="p-8 overflow-y-auto flex-1 space-y-6">
+              {/* Row 1: Type + Time + Duration */}
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-muted mb-1">場次類型</label>
+                  <select value={form.sessionType} onChange={(e) => setForm({ ...form, sessionType: e.target.value })} className="w-full px-3 py-2 pr-8 border border-border rounded-lg text-sm bg-white">
+                    <option value="registration">報到</option>
+                    <option value="opening">開幕典禮</option>
+                    <option value="keynote">專題演講</option>
+                    <option value="photo">大合照</option>
+                    <option value="paper_session">論文發表</option>
+                    <option value="roundtable">圓桌論壇</option>
+                    <option value="break">休息</option>
+                    <option value="dinner">晚宴</option>
+                    <option value="closing">閉幕</option>
+                    <option value="exhibition">展覽</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted mb-1">開始時間</label>
+                  <input type="text" placeholder="09:00" value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-medium text-muted mb-1">時長</label>
+                    <input type="number" value={form.duration} onChange={(e) => setForm({ ...form, duration: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-muted mb-1">排序</label>
+                    <input type="number" value={form.sortOrder} onChange={(e) => setForm({ ...form, sortOrder: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-dark mb-1">時長（分鐘）</label>
-                <input type="number" value={form.duration} onChange={(e) => setForm({ ...form, duration: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+
+              {/* Row 2: Titles */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-muted mb-1">標題（英文）</label>
+                  <input type="text" value={form.titleEn} onChange={(e) => setForm({ ...form, titleEn: e.target.value })} placeholder="Applied Buddhism and the Bodhisattva Path" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted mb-1">標題（中文）</label>
+                  <input type="text" value={form.titleZh} onChange={(e) => setForm({ ...form, titleZh: e.target.value })} placeholder="應用佛教與菩薩道" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                </div>
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+
+              {/* Row 3: Descriptions */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-muted mb-1">說明（英文）</label>
+                  <textarea rows={3} value={form.subtitleEn} onChange={(e) => setForm({ ...form, subtitleEn: e.target.value })} placeholder="Session description, speaker list..." className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted mb-1">說明（中文）</label>
+                  <textarea rows={3} value={form.subtitleZh} onChange={(e) => setForm({ ...form, subtitleZh: e.target.value })} placeholder="場次說明、講者列表..." className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                </div>
+              </div>
+
+              {/* Row 4: Venue */}
               <div>
-                <label className="block text-sm font-medium text-dark mb-1">場地</label>
+                <label className="block text-xs font-medium text-muted mb-1">場地</label>
                 <input type="text" value={form.venue} onChange={(e) => setForm({ ...form, venue: e.target.value })} placeholder="Harvard Faculty Club" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-dark mb-1">排序</label>
-                <input type="number" value={form.sortOrder} onChange={(e) => setForm({ ...form, sortOrder: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
-              </div>
             </div>
-            <div className="flex justify-end gap-3 pt-4">
-              <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-muted">取消</button>
-              <button onClick={handleSave} className="px-4 py-2 bg-gold text-white text-sm rounded-lg">儲存</button>
+
+            {/* Footer */}
+            <div className="px-8 py-4 border-t border-border flex justify-end gap-3 shrink-0 bg-cream/30">
+              <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-muted border border-border rounded-lg hover:bg-cream">取消</button>
+              <button onClick={handleSave} className="px-5 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light">儲存</button>
             </div>
-          </div></div>
+          </div>
         </div>
       )}
     </>
