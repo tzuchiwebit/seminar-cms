@@ -40,7 +40,12 @@
       "Bash(mv \"src/app/\\(public\\)/[[...slug]]/PublicPageClient.tsx\" \"src/app/\\(public\\)/PublicPageClient.tsx\")",
       "Bash(rm \"src/app/\\(public\\)/[[...slug]]/page.tsx\" \"src/app/\\(public\\)/[[...slug]]/layout.tsx\")",
       "Bash(rmdir \"src/app/\\(public\\)/[[...slug]]\")",
-      "Bash(mv \"src/app/\\(public\\)/HomePage.tsx\" \"src/app/\\(public\\)/[[...slug]]/\")"
+      "Bash(mv \"src/app/\\(public\\)/HomePage.tsx\" \"src/app/\\(public\\)/[[...slug]]/\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'Site created: id={d[\\\\\"id\\\\\"]}, slug={d[\\\\\"slug\\\\\"]}'\\)\")",
+      "Bash(python3 -c \"import sys,json; print\\(json.load\\(sys.stdin\\)\\)\")",
+      "Bash(node:*)",
+      "Bash(python3 -m json.tool)",
+      "Bash(python3 -c \"import sys,json; [print\\(f['name'],f['type'],f.get\\('required',False\\)\\) for f in json.load\\(sys.stdin\\)['fields']]\")"
     ]
   }
 }
