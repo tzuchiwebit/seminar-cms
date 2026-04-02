@@ -1,7 +1,8 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useSession, signOut } from "next-auth/react";
+import { useAuth } from "@/hooks/useAuth";
+import pb from "@/lib/pb";
 import Link from "next/link";
 import {
   LayoutDashboard,
@@ -29,7 +30,7 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { data: session } = useSession();
+  const { user, signOut } = useAuth();
 
   const isActive = (href: string) => {
     if (href === "/admin") return pathname === "/admin";
@@ -97,19 +98,19 @@ export default function Sidebar() {
       {/* User section */}
       <div className="px-5 py-4 border-t border-white/10">
         <div className="flex items-center gap-3">
-          {session?.user?.image ? (
-            <img src={session.user.image} alt="" className="w-8 h-8 rounded-full shrink-0" />
+          {user?.avatar ? (
+            <img src={pb.files.getURL(user, user.avatar)} alt="" className="w-8 h-8 rounded-full shrink-0" />
           ) : (
             <div className="w-8 h-8 rounded-full bg-gold/80 flex items-center justify-center text-white text-sm font-medium shrink-0">
-              {session?.user?.name?.charAt(0) || "?"}
+              {user?.name?.charAt(0) || "?"}
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <div className="text-white text-sm truncate">{session?.user?.name || "使用者"}</div>
-            <div className="text-white/40 text-xs truncate">{session?.user?.email || ""}</div>
+            <div className="text-white text-sm truncate">{user?.name || "使用者"}</div>
+            <div className="text-white/40 text-xs truncate">{user?.email || ""}</div>
           </div>
           <button
-            onClick={() => signOut({ callbackUrl: "/admin/login" })}
+            onClick={() => signOut()}
             className="p-1.5 text-white/40 hover:text-white transition-colors"
             title="登出"
           >
