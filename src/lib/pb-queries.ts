@@ -102,7 +102,6 @@ export async function getSiteSpeakers(siteId: string) {
 export async function getSiteVenues(siteId: string) {
   return pb.collection("venues").getFullList({
     filter: `site="${siteId}"`,
-    sort: "created",
   });
 }
 
