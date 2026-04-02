@@ -34,7 +34,8 @@
       "Bash(rm \"src/app/admin/[site]/page.tsx\")",
       "Bash(mv \"src/app/admin/[site]/SiteDashboardClient.tsx\" \"src/app/admin/SiteDashboardClient.tsx\")",
       "Bash(rmdir \"src/app/admin/[site]\")",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(git rm:*)"
     ]
   }
 }
