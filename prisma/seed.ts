@@ -21,7 +21,7 @@ async function main() {
     data: {
       name: "全球共善學思會",
       slug: "symposium",
-      domain: "symposium.tzuchi.org",
+      domain: null,
       status: "published",
     },
   });
@@ -40,24 +40,51 @@ async function main() {
 
   // ── Create speakers ──
   const speakerData = [
-    { name: "何日生", nameEn: "Rey-Sheng Her", affiliation: "慈濟基金會", title: "Deputy CEO", sortOrder: 1 },
-    { name: "Stephen Teiser", nameEn: "Stephen Teiser", affiliation: "Princeton University", title: "Professor", sortOrder: 2 },
-    { name: "邵嘉德", nameEn: "Jiade Shao", affiliation: null, title: null, sortOrder: 3 },
-    { name: "林安梧", nameEn: "Amwu Lin", affiliation: null, title: null, sortOrder: 4 },
-    { name: "Jonathan Gold", nameEn: "Jonathan Gold", affiliation: null, title: null, sortOrder: 5 },
-    { name: "Pierce Salguero", nameEn: "Pierce Salguero", affiliation: null, title: null, sortOrder: 6 },
-    { name: "Mayfair Yang", nameEn: "Mayfair Yang", affiliation: null, title: null, sortOrder: 7 },
-    { name: "James Robson", nameEn: "James Robson", affiliation: null, title: null, sortOrder: 8 },
-    { name: "Brooke Lavelle", nameEn: "Brooke Lavelle", affiliation: null, title: null, sortOrder: 9 },
-    { name: "林建德", nameEn: "Chien-te Lin", affiliation: "慈濟大學", title: "宗教與人文研究所教授", sortOrder: 10 },
-    { name: "鄧偉仁", nameEn: "Weijen Teng", affiliation: null, title: null, sortOrder: 11 },
-    { name: "Justin Ritzinger", nameEn: "Justin Ritzinger", affiliation: null, title: null, sortOrder: 12 },
-    { name: "Kate Crosby", nameEn: "Kate Crosby", affiliation: null, title: null, sortOrder: 13 },
-    { name: "李玉珍", nameEn: "Yu-chen Li", affiliation: null, title: null, sortOrder: 14 },
-    { name: "林佩瑩", nameEn: "Pei-ying Lin", affiliation: null, title: null, sortOrder: 15 },
-    { name: "黃倩玉", nameEn: "Julia Huang", affiliation: null, title: null, sortOrder: 16 },
-    { name: "William McGrath", nameEn: "William McGrath", affiliation: null, title: null, sortOrder: 17 },
-    { name: "孫英剛", nameEn: "Yinggang Sun", affiliation: null, title: null, sortOrder: 18 },
+    { name: "Rey-Sheng Her", nameCn: "何日生", affiliation: "慈濟基金會", title: "Deputy CEO", sortOrder: 1 },
+    { name: "Stephen Teiser", nameCn: null, affiliation: "Princeton University", title: "Professor", sortOrder: 2 },
+    { name: "Jiade Shao", nameCn: "邵嘉德", affiliation: null, title: null, sortOrder: 3 },
+    { name: "Amwu Lin", nameCn: "林安梧", affiliation: null, title: null, sortOrder: 4 },
+    { name: "Jonathan Gold", nameCn: null, affiliation: null, title: null, sortOrder: 5 },
+    { name: "Pierce Salguero", nameCn: null, affiliation: null, title: null, sortOrder: 6 },
+    { name: "Mayfair Yang", nameCn: null, affiliation: null, title: null, sortOrder: 7 },
+    { name: "James Robson", nameCn: null, affiliation: null, title: null, sortOrder: 8 },
+    { name: "Brooke Lavelle", nameCn: null, affiliation: null, title: null, sortOrder: 9 },
+    { name: "Chien-te Lin", nameCn: "林建德", affiliation: "慈濟大學", title: "宗教與人文研究所教授", sortOrder: 10 },
+    { name: "Weijen Teng", nameCn: "鄧偉仁", affiliation: null, title: null, sortOrder: 11 },
+    { name: "Justin Ritzinger", nameCn: null, affiliation: null, title: null, sortOrder: 12 },
+    { name: "Kate Crosby", nameCn: null, affiliation: null, title: null, sortOrder: 13 },
+    { name: "Yu-chen Li", nameCn: "李玉珍", affiliation: null, title: null, sortOrder: 14 },
+    { name: "Pei-ying Lin", nameCn: "林佩瑩", affiliation: null, title: null, sortOrder: 15 },
+    { name: "Julia Huang", nameCn: "黃倩玉", affiliation: null, title: null, sortOrder: 16 },
+    { name: "William McGrath", nameCn: null, affiliation: null, title: null, sortOrder: 17 },
+    { name: "Yinggang Sun", nameCn: "孫英剛", affiliation: null, title: null, sortOrder: 18 },
+    // New speakers from PDF
+    { name: "Jianming He", nameCn: "何建明", affiliation: null, title: null, sortOrder: 19 },
+    { name: "Parimal Patil", nameCn: null, affiliation: null, title: null, sortOrder: 20 },
+    { name: "Elise Anne DeVido", nameCn: null, affiliation: null, title: null, sortOrder: 21 },
+    { name: "Tjhin Hong Lin", nameCn: null, affiliation: null, title: null, sortOrder: 22 },
+    { name: "Debby Lee", nameCn: null, affiliation: null, title: null, sortOrder: 23 },
+    { name: "Wen-liang Zhang", nameCn: null, affiliation: null, title: null, sortOrder: 24 },
+    { name: "Monica Sanford", nameCn: null, affiliation: null, title: null, sortOrder: 25 },
+    { name: "William Yau Nang Ng", nameCn: null, affiliation: null, title: null, sortOrder: 26 },
+    { name: "Weishan Huang", nameCn: null, affiliation: null, title: null, sortOrder: 27 },
+    { name: "Jiangang Zhu", nameCn: null, affiliation: null, title: null, sortOrder: 28 },
+    { name: "Yining Liu", nameCn: null, affiliation: null, title: null, sortOrder: 29 },
+    { name: "Megan Bryson", nameCn: null, affiliation: null, title: null, sortOrder: 30 },
+    { name: "Eugene Wang", nameCn: "汪悅進", affiliation: "Harvard", title: null, sortOrder: 31 },
+    { name: "Melissa McCormick", nameCn: null, affiliation: "Harvard", title: null, sortOrder: 32 },
+    { name: "Sonya Lee", nameCn: null, affiliation: "USC", title: null, sortOrder: 33 },
+    { name: "Anthony Dunne", nameCn: null, affiliation: "The New School", title: null, sortOrder: 34 },
+    { name: "Fiona Raby", nameCn: null, affiliation: "The New School", title: null, sortOrder: 35 },
+    { name: "James Auger", nameCn: null, affiliation: "RMIT", title: null, sortOrder: 36 },
+    { name: "Allen Sayegh", nameCn: null, affiliation: "Harvard GSD", title: null, sortOrder: 37 },
+    { name: "Sheila Kennedy", nameCn: null, affiliation: "MIT", title: null, sortOrder: 38 },
+    { name: "Jungyoon Kim", nameCn: null, affiliation: "Harvard GSD", title: null, sortOrder: 39 },
+    { name: "Goh Yu Han", nameCn: null, affiliation: "SALAD Dressing", title: null, sortOrder: 40 },
+    { name: "Chang Huai Yan", nameCn: null, affiliation: "SALAD Dressing", title: null, sortOrder: 41 },
+    { name: "Monique Mead", nameCn: null, affiliation: "Carnegie Mellon University", title: null, sortOrder: 42 },
+    { name: "Cuilian Liu", nameCn: null, affiliation: "University of Pittsburgh", title: null, sortOrder: 43 },
+    { name: "Chenchen Lu", nameCn: null, affiliation: "Harvard CAMLab", title: null, sortOrder: 44 },
   ];
 
   const speakers: Record<string, { id: number }> = {};
@@ -66,14 +93,14 @@ async function main() {
       data: {
         siteId: site.id,
         name: s.name,
-        nameEn: s.nameEn,
+        nameCn: s.nameCn,
         affiliation: s.affiliation,
         title: s.title,
         status: "confirmed",
         sortOrder: s.sortOrder,
       },
     });
-    speakers[s.nameEn!] = created;
+    speakers[s.name] = created;
   }
 
   // ── Create days ──
@@ -82,8 +109,8 @@ async function main() {
       siteId: site.id,
       dayNumber: 1,
       date: new Date("2026-05-05"),
-      titleZh: "明心展覽導覽",
-      titleEn: "\"Journey to Enlightenment\" Exhibition Tour",
+      titleZh: "明心展覽開幕",
+      titleEn: "Opening Ceremony of \"Journey to Enlightenment\"",
     },
   });
 
@@ -92,8 +119,8 @@ async function main() {
       siteId: site.id,
       dayNumber: 2,
       date: new Date("2026-05-06"),
-      titleZh: "明心展覽開幕",
-      titleEn: "Opening Ceremony of \"Journey to Enlightenment\"",
+      titleZh: "明心展覽導覽",
+      titleEn: "\"Journey to Enlightenment\" Exhibition Tour",
     },
   });
 
@@ -128,14 +155,31 @@ async function main() {
   });
 
   // ══════════════════════════════════════
-  // Day 1 (May 5, Tue) — Exhibition Tour
+  // Day 1 (May 5, Tue) — Opening Ceremony
   // ══════════════════════════════════════
   await prisma.session.create({
     data: {
       dayId: day1.id,
+      type: "opening",
+      titleZh: "明心展覽開幕典禮",
+      titleEn: "Opening Ceremony",
+      subtitleEn: "Remarks:\n1. Representative of Harvard University\n2. Representative of Jing Si Monastic\n3. Po-Wen Yen, CEO of Tzu Chi Foundation\n4. Eugene Wang, Director of Harvard CAMLab\n5. Special Guests\n\nIntroduction to Project Journey to Enlightenment",
+      startTime: "18:30",
+      duration: 60,
+      venue: "Harvard Adolphus Busch Hall",
+      sortOrder: 1,
+    },
+  });
+
+  // ══════════════════════════════════════
+  // Day 2 (May 6, Wed) — Exhibition Tour
+  // ══════════════════════════════════════
+  await prisma.session.create({
+    data: {
+      dayId: day2.id,
       type: "exhibition",
       titleZh: "明心展覽導覽",
-      titleEn: "\"Journey to Enlightenment\" Exhibition Tour",
+      titleEn: "Exhibition Tour",
       subtitleZh: "邀請學者與貴賓參觀「明心」展覽",
       subtitleEn: "Inviting scholars and guests to visit the \"Journey to Enlightenment\" exhibition",
       startTime: "13:30",
@@ -146,36 +190,24 @@ async function main() {
   });
 
   // ══════════════════════════════════════
-  // Day 2 (May 6, Wed) — Exhibition Opening
-  // ══════════════════════════════════════
-  await prisma.session.create({
-    data: {
-      dayId: day2.id,
-      type: "opening",
-      titleZh: "明心展覽開幕典禮",
-      titleEn: "Opening Ceremony of \"Journey to Enlightenment\"",
-      startTime: "18:30",
-      duration: 60,
-      venue: "Harvard Adolphus Busch Hall",
-      sortOrder: 1,
-    },
-  });
-
-  // ══════════════════════════════════════
   // Day 3 (May 7, Thu) — Applied Buddhism
   // ══════════════════════════════════════
-  await prisma.session.create({
+
+  // Opening Remarks
+  const day3opening = await prisma.session.create({
     data: {
       dayId: day3.id,
-      type: "registration",
-      titleZh: "報到",
-      titleEn: "Registration",
+      type: "opening",
+      titleZh: "開幕致詞",
+      titleEn: "Opening Remarks",
+      subtitleEn: "1. Representative of Harvard University\n2. Representative of Leading scholars on Buddhism studies\n3. Jing Si Monastic Representative\n4. Representative of Harvard CAMLab\n5. Special Guests",
       startTime: "08:30",
       duration: 50,
       sortOrder: 1,
     },
   });
 
+  // Group Photo
   await prisma.session.create({
     data: {
       dayId: day3.id,
@@ -188,6 +220,7 @@ async function main() {
     },
   });
 
+  // Keynote Speech I
   const keynote1 = await prisma.session.create({
     data: {
       dayId: day3.id,
@@ -206,6 +239,7 @@ async function main() {
     data: { sessionId: keynote1.id, speakerId: speakers["Rey-Sheng Her"].id, role: "speaker" },
   });
 
+  // Break
   await prisma.session.create({
     data: {
       dayId: day3.id,
@@ -218,12 +252,15 @@ async function main() {
     },
   });
 
+  // Session I
   const panel1 = await prisma.session.create({
     data: {
       dayId: day3.id,
       type: "paper_session",
       titleZh: "菩薩道的哲學與倫理基礎",
       titleEn: "Philosophical and Ethical Foundations of the Bodhisattva Path",
+      subtitleZh: "場次 I",
+      subtitleEn: "Session I",
       startTime: "10:20",
       duration: 130,
       sortOrder: 5,
@@ -259,6 +296,7 @@ async function main() {
   await prisma.paper.create({
     data: {
       sessionId: panel1.id,
+      speakerId: speakers["Jianming He"].id,
       titleZh: "證嚴上人的《法華經》釋義與慈濟佛教的形成",
       titleEn: "Venerable Cheng Yen's Exegesis of the Lotus Sutra and the Formation of Tzu Chi Buddhism",
       status: "accepted",
@@ -277,6 +315,15 @@ async function main() {
     },
   });
 
+  // Session I commentators
+  await prisma.sessionSpeaker.createMany({
+    data: [
+      { sessionId: panel1.id, speakerId: speakers["Parimal Patil"].id, role: "discussant" },
+      { sessionId: panel1.id, speakerId: speakers["Kate Crosby"].id, role: "discussant" },
+    ],
+  });
+
+  // Lunch
   await prisma.session.create({
     data: {
       dayId: day3.id,
@@ -289,26 +336,42 @@ async function main() {
     },
   });
 
+  // Session II
   const panel2 = await prisma.session.create({
     data: {
       dayId: day3.id,
       type: "paper_session",
       titleZh: "佛教、健康與照護倫理",
       titleEn: "Buddhism, Health, and Ethics of Care",
+      subtitleZh: "場次 II",
+      subtitleEn: "Session II",
       startTime: "14:00",
       duration: 130,
       sortOrder: 7,
     },
   });
 
+  // Yinggang Sun - TBD paper
   await prisma.paper.create({
     data: {
       sessionId: panel2.id,
-      speakerId: speakers["Jonathan Gold"].id,
+      speakerId: speakers["Yinggang Sun"].id,
+      titleZh: "TBD",
+      titleEn: "TBD",
+      status: "draft",
+      sortOrder: 1,
+    },
+  });
+
+  // William McGrath paper (was previously attributed to Jonathan Gold)
+  await prisma.paper.create({
+    data: {
+      sessionId: panel2.id,
+      speakerId: speakers["William McGrath"].id,
       titleZh: "從佛陀的醫師到藥師佛",
       titleEn: "From the Buddha's Physician to the Medicine Buddha",
       status: "accepted",
-      sortOrder: 1,
+      sortOrder: 2,
     },
   });
 
@@ -319,7 +382,7 @@ async function main() {
       titleZh: "超越正念：美國的佛教與健康",
       titleEn: "Beyond Mindfulness: Buddhism & Health in the US",
       status: "accepted",
-      sortOrder: 2,
+      sortOrder: 3,
     },
   });
 
@@ -330,10 +393,16 @@ async function main() {
       titleZh: "追逐赤頸鶴：藍毗尼的佛教與印度教多物種群落",
       titleEn: "Chasing the Sarus Cranes: Buddhist and Hindu Multispecies Assemblages in Lumbini",
       status: "accepted",
-      sortOrder: 3,
+      sortOrder: 4,
     },
   });
 
+  // Jonathan Gold as session speaker (no paper title)
+  await prisma.sessionSpeaker.create({
+    data: { sessionId: panel2.id, speakerId: speakers["Jonathan Gold"].id, role: "speaker" },
+  });
+
+  // Session II commentators
   await prisma.sessionSpeaker.createMany({
     data: [
       { sessionId: panel2.id, speakerId: speakers["James Robson"].id, role: "discussant" },
@@ -341,6 +410,7 @@ async function main() {
     ],
   });
 
+  // Break
   await prisma.session.create({
     data: {
       dayId: day3.id,
@@ -353,24 +423,40 @@ async function main() {
     },
   });
 
-  await prisma.session.create({
+  // Roundtable I
+  const roundtable1 = await prisma.session.create({
     data: {
       dayId: day3.id,
       type: "roundtable",
-      titleZh: "圓桌論壇",
-      titleEn: "Roundtable",
+      titleZh: "圓桌論壇 I",
+      titleEn: "Roundtable I",
       startTime: "16:30",
       duration: 90,
       sortOrder: 9,
     },
   });
 
+  await prisma.sessionSpeaker.createMany({
+    data: [
+      { sessionId: roundtable1.id, speakerId: speakers["James Robson"].id, role: "moderator" },
+      { sessionId: roundtable1.id, speakerId: speakers["Tjhin Hong Lin"].id, role: "speaker" },
+      { sessionId: roundtable1.id, speakerId: speakers["Debby Lee"].id, role: "speaker" },
+      { sessionId: roundtable1.id, speakerId: speakers["Wen-liang Zhang"].id, role: "speaker" },
+      { sessionId: roundtable1.id, speakerId: speakers["Rey-Sheng Her"].id, role: "speaker" },
+      { sessionId: roundtable1.id, speakerId: speakers["Pierce Salguero"].id, role: "speaker" },
+      { sessionId: roundtable1.id, speakerId: speakers["Monica Sanford"].id, role: "speaker" },
+      { sessionId: roundtable1.id, speakerId: speakers["Brooke Lavelle"].id, role: "speaker" },
+    ],
+  });
+
+  // Dinner
   await prisma.session.create({
     data: {
       dayId: day3.id,
       type: "dinner",
       titleZh: "晚宴",
       titleEn: "Dinner",
+      venue: "Harvard Faculty Club",
       startTime: "19:00",
       sortOrder: 10,
     },
@@ -379,28 +465,43 @@ async function main() {
   // ══════════════════════════════════════
   // Day 4 (May 8, Fri) — Cheng Yen's Philosophy
   // ══════════════════════════════════════
-  await prisma.session.create({
+
+  // Keynote Speech II
+  const keynote2 = await prisma.session.create({
     data: {
       dayId: day4.id,
-      type: "registration",
-      titleZh: "報到",
-      titleEn: "Registration",
+      type: "keynote",
+      titleZh: "寺院與瘋人院：近代及當代東亞佛教中精神病患的照護與收容",
+      titleEn: "Monasteries & Madhouses: On the Care and Confinement of the Insane in Early Modern and Contemporary East Asian Buddhism",
+      subtitleZh: "專題演講 II",
+      subtitleEn: "Keynote Speech II",
       startTime: "08:30",
       duration: 30,
       sortOrder: 1,
     },
   });
 
+  await prisma.sessionSpeaker.create({
+    data: { sessionId: keynote2.id, speakerId: speakers["James Robson"].id, role: "speaker" },
+  });
+
+  // Session III
   const panel3 = await prisma.session.create({
     data: {
       dayId: day4.id,
       type: "paper_session",
-      titleZh: "證嚴上人思想與領導力（上）",
-      titleEn: "Venerable Cheng Yen's Philosophy and Leadership (Part I)",
+      titleZh: "《法華經》與證嚴上人思想",
+      titleEn: "The Lotus Sutra and the Thought of Master Cheng Yen",
+      subtitleZh: "場次 III",
+      subtitleEn: "Session III",
       startTime: "09:00",
       duration: 100,
       sortOrder: 2,
     },
+  });
+
+  await prisma.sessionSpeaker.create({
+    data: { sessionId: panel3.id, speakerId: speakers["Parimal Patil"].id, role: "moderator" },
   });
 
   await prisma.paper.create({
@@ -425,6 +526,18 @@ async function main() {
     },
   });
 
+  await prisma.paper.create({
+    data: {
+      sessionId: panel3.id,
+      speakerId: speakers["Elise Anne DeVido"].id,
+      titleZh: "慈濟教義中的動物報恩",
+      titleEn: "Animal Repaying Debts of Gratitude in Tzu Chi Teachings",
+      status: "accepted",
+      sortOrder: 3,
+    },
+  });
+
+  // Session III commentators
   await prisma.sessionSpeaker.createMany({
     data: [
       { sessionId: panel3.id, speakerId: speakers["Weijen Teng"].id, role: "discussant" },
@@ -432,6 +545,7 @@ async function main() {
     ],
   });
 
+  // Break
   await prisma.session.create({
     data: {
       dayId: day4.id,
@@ -444,12 +558,15 @@ async function main() {
     },
   });
 
+  // Session IV
   const panel4 = await prisma.session.create({
     data: {
       dayId: day4.id,
       type: "paper_session",
-      titleZh: "證嚴上人思想與領導力（下）",
-      titleEn: "Venerable Cheng Yen's Philosophy and Leadership (Part II)",
+      titleZh: "慈濟的魅力、實踐與宗教社群",
+      titleEn: "Charisma, Practice, and Religious Community in Tzu Chi",
+      subtitleZh: "場次 IV",
+      subtitleEn: "Session IV",
       startTime: "11:00",
       duration: 100,
       sortOrder: 4,
@@ -457,7 +574,7 @@ async function main() {
   });
 
   await prisma.sessionSpeaker.create({
-    data: { sessionId: panel4.id, speakerId: speakers["Kate Crosby"].id, role: "speaker" },
+    data: { sessionId: panel4.id, speakerId: speakers["Kate Crosby"].id, role: "moderator" },
   });
 
   await prisma.paper.create({
@@ -493,6 +610,15 @@ async function main() {
     },
   });
 
+  // Session IV commentators
+  await prisma.sessionSpeaker.createMany({
+    data: [
+      { sessionId: panel4.id, speakerId: speakers["Pierce Salguero"].id, role: "discussant" },
+      { sessionId: panel4.id, speakerId: speakers["Jonathan Gold"].id, role: "discussant" },
+    ],
+  });
+
+  // Lunch
   await prisma.session.create({
     data: {
       dayId: day4.id,
@@ -505,18 +631,78 @@ async function main() {
     },
   });
 
-  await prisma.session.create({
+  // Session V
+  const panel5 = await prisma.session.create({
     data: {
       dayId: day4.id,
       type: "paper_session",
-      titleZh: "論文發表",
-      titleEn: "Paper Session",
+      titleZh: "全球人道主義與入世佛教",
+      titleEn: "Global Humanitarianism and Engaged Buddhism",
+      subtitleZh: "場次 V",
+      subtitleEn: "Session V",
       startTime: "14:00",
       duration: 130,
       sortOrder: 6,
     },
   });
 
+  await prisma.sessionSpeaker.create({
+    data: { sessionId: panel5.id, speakerId: speakers["Weijen Teng"].id, role: "moderator" },
+  });
+
+  await prisma.paper.create({
+    data: {
+      sessionId: panel5.id,
+      speakerId: speakers["William Yau Nang Ng"].id,
+      titleZh: "重新思考人類安全：慈濟式服務佛教",
+      titleEn: "Reconsidering Human Security: Tzu Chi–Style Service Buddhism",
+      status: "accepted",
+      sortOrder: 1,
+    },
+  });
+
+  await prisma.paper.create({
+    data: {
+      sessionId: panel5.id,
+      speakerId: speakers["Weishan Huang"].id,
+      titleZh: "慈悲設計：慈濟科技人道主義的道德生態",
+      titleEn: "Compassion by Design: The Moral Ecology of Tzu Chi's Technological Humanitarianism",
+      status: "accepted",
+      sortOrder: 2,
+    },
+  });
+
+  await prisma.paper.create({
+    data: {
+      sessionId: panel5.id,
+      speakerId: speakers["Jiangang Zhu"].id,
+      titleZh: "宗教與志工服務：以中國大陸慈濟志工為個案研究",
+      titleEn: "Religion and Volunteerism: A case study on Tzu Chi volunteers in mainland China",
+      status: "accepted",
+      sortOrder: 3,
+    },
+  });
+
+  await prisma.paper.create({
+    data: {
+      sessionId: panel5.id,
+      speakerId: speakers["Yining Liu"].id,
+      titleZh: "人類世中的生態菩薩",
+      titleEn: "Eco-Bodhisattvas in the Anthropocene",
+      status: "accepted",
+      sortOrder: 4,
+    },
+  });
+
+  // Session V commentators
+  await prisma.sessionSpeaker.createMany({
+    data: [
+      { sessionId: panel5.id, speakerId: speakers["Monica Sanford"].id, role: "discussant" },
+      { sessionId: panel5.id, speakerId: speakers["Megan Bryson"].id, role: "discussant" },
+    ],
+  });
+
+  // Break
   await prisma.session.create({
     data: {
       dayId: day4.id,
@@ -529,6 +715,7 @@ async function main() {
     },
   });
 
+  // Roundtable II
   const roundtable2 = await prisma.session.create({
     data: {
       dayId: day4.id,
@@ -553,6 +740,7 @@ async function main() {
     ],
   });
 
+  // Dinner
   await prisma.session.create({
     data: {
       dayId: day4.id,
@@ -565,32 +753,70 @@ async function main() {
   });
 
   // ══════════════════════════════════════
-  // Day 5 (May 9, Sat) — Design Futures (TBD)
+  // Day 5 (May 9, Sat) — Design Futures
   // ══════════════════════════════════════
-  await prisma.session.create({
+
+  // Keynote Speech III
+  const keynote3 = await prisma.session.create({
     data: {
       dayId: day5.id,
-      type: "registration",
-      titleZh: "報到",
-      titleEn: "Registration",
+      type: "keynote",
+      titleZh: "專題演講 III",
+      titleEn: "Keynote Speech III",
+      subtitleZh: "專題演講 III",
+      subtitleEn: "Keynote Speech III",
       startTime: "09:00",
       duration: 20,
       sortOrder: 1,
     },
   });
 
-  await prisma.session.create({
+  await prisma.sessionSpeaker.create({
+    data: { sessionId: keynote3.id, speakerId: speakers["Eugene Wang"].id, role: "speaker" },
+  });
+
+  // Session VI
+  const panel6 = await prisma.session.create({
     data: {
       dayId: day5.id,
       type: "paper_session",
-      titleZh: "場次一",
-      titleEn: "Session I",
+      titleZh: "佛教世界建構作為概念框架",
+      titleEn: "Buddhist Worldmaking as Conceptual Framework",
+      subtitleZh: "場次 VI",
+      subtitleEn: "Session VI",
       startTime: "09:20",
       duration: 75,
       sortOrder: 2,
     },
   });
 
+  await prisma.sessionSpeaker.create({
+    data: { sessionId: panel6.id, speakerId: speakers["Eugene Wang"].id, role: "moderator" },
+  });
+
+  await prisma.paper.create({
+    data: {
+      sessionId: panel6.id,
+      speakerId: speakers["Melissa McCormick"].id,
+      titleZh: "TBD",
+      titleEn: "TBD",
+      status: "draft",
+      sortOrder: 1,
+    },
+  });
+
+  await prisma.paper.create({
+    data: {
+      sessionId: panel6.id,
+      speakerId: speakers["Sonya Lee"].id,
+      titleZh: "回收再利用的精神：通過複製保存佛教壁畫",
+      titleEn: "In the Spirit of Recycle and Reuse: Preserving Buddhist Wall Painting through Replication",
+      status: "accepted",
+      sortOrder: 2,
+    },
+  });
+
+  // Break
   await prisma.session.create({
     data: {
       dayId: day5.id,
@@ -603,18 +829,34 @@ async function main() {
     },
   });
 
-  await prisma.session.create({
+  // Session VII
+  const panel7 = await prisma.session.create({
     data: {
       dayId: day5.id,
       type: "paper_session",
-      titleZh: "場次二",
-      titleEn: "Session II",
+      titleZh: "推測性設計與替代未來",
+      titleEn: "Speculative Design and Alternative Futures",
+      subtitleZh: "場次 VII",
+      subtitleEn: "Session VII",
       startTime: "10:50",
       duration: 90,
       sortOrder: 4,
     },
   });
 
+  await prisma.sessionSpeaker.create({
+    data: { sessionId: panel7.id, speakerId: speakers["Anthony Dunne"].id, role: "moderator" },
+  });
+
+  await prisma.sessionSpeaker.createMany({
+    data: [
+      { sessionId: panel7.id, speakerId: speakers["Fiona Raby"].id, role: "speaker" },
+      { sessionId: panel7.id, speakerId: speakers["James Auger"].id, role: "speaker" },
+      { sessionId: panel7.id, speakerId: speakers["Allen Sayegh"].id, role: "speaker" },
+    ],
+  });
+
+  // Lunch
   await prisma.session.create({
     data: {
       dayId: day5.id,
@@ -627,18 +869,53 @@ async function main() {
     },
   });
 
-  await prisma.session.create({
+  // Session VIII
+  const panel8 = await prisma.session.create({
     data: {
       dayId: day5.id,
       type: "paper_session",
-      titleZh: "場次三",
-      titleEn: "Session III",
+      titleZh: "建築、生態與系統思維",
+      titleEn: "Architecture, Ecology, and Systems Thinking",
+      subtitleZh: "場次 VIII",
+      subtitleEn: "Session VIII",
       startTime: "13:20",
       duration: 75,
       sortOrder: 6,
     },
   });
 
+  await prisma.sessionSpeaker.create({
+    data: { sessionId: panel8.id, speakerId: speakers["Sheila Kennedy"].id, role: "moderator" },
+  });
+
+  await prisma.paper.create({
+    data: {
+      sessionId: panel8.id,
+      speakerId: speakers["Jungyoon Kim"].id,
+      titleZh: "TBD",
+      titleEn: "TBD",
+      status: "draft",
+      sortOrder: 1,
+    },
+  });
+
+  await prisma.paper.create({
+    data: {
+      sessionId: panel8.id,
+      speakerId: speakers["Goh Yu Han"].id,
+      titleZh: "TBD",
+      titleEn: "TBD",
+      status: "draft",
+      sortOrder: 2,
+    },
+  });
+
+  // Chang Huai Yan as co-presenter on the SALAD Dressing paper
+  await prisma.sessionSpeaker.create({
+    data: { sessionId: panel8.id, speakerId: speakers["Chang Huai Yan"].id, role: "speaker" },
+  });
+
+  // Break
   await prisma.session.create({
     data: {
       dayId: day5.id,
@@ -651,18 +928,48 @@ async function main() {
     },
   });
 
-  await prisma.session.create({
+  // Session IX
+  const panel9 = await prisma.session.create({
     data: {
       dayId: day5.id,
       type: "paper_session",
-      titleZh: "場次四",
-      titleEn: "Session IV",
+      titleZh: "心靈、中介與多感官體驗",
+      titleEn: "Mind, Mediation, and Multisensorial Experience",
+      subtitleZh: "場次 IX",
+      subtitleEn: "Session IX",
       startTime: "14:50",
       duration: 75,
       sortOrder: 8,
     },
   });
 
+  await prisma.sessionSpeaker.create({
+    data: { sessionId: panel9.id, speakerId: speakers["Monique Mead"].id, role: "moderator" },
+  });
+
+  await prisma.paper.create({
+    data: {
+      sessionId: panel9.id,
+      speakerId: speakers["Cuilian Liu"].id,
+      titleZh: "TBD",
+      titleEn: "TBD",
+      status: "draft",
+      sortOrder: 1,
+    },
+  });
+
+  await prisma.paper.create({
+    data: {
+      sessionId: panel9.id,
+      speakerId: speakers["Chenchen Lu"].id,
+      titleZh: "TBD",
+      titleEn: "TBD",
+      status: "draft",
+      sortOrder: 2,
+    },
+  });
+
+  // Break
   await prisma.session.create({
     data: {
       dayId: day5.id,
@@ -675,18 +982,22 @@ async function main() {
     },
   });
 
+  // Final Roundtable
   await prisma.session.create({
     data: {
       dayId: day5.id,
-      type: "paper_session",
-      titleZh: "綜合討論",
-      titleEn: "General Discussion",
+      type: "roundtable",
+      titleZh: "「佛教之後的設計」意味著什麼？",
+      titleEn: "What Does It Mean to Design 'After Buddhism'?",
+      subtitleZh: "最終圓桌論壇",
+      subtitleEn: "Final Roundtable",
       startTime: "16:20",
       duration: 40,
       sortOrder: 10,
     },
   });
 
+  // Closing
   await prisma.session.create({
     data: {
       dayId: day5.id,
@@ -699,6 +1010,7 @@ async function main() {
     },
   });
 
+  // Dinner
   await prisma.session.create({
     data: {
       dayId: day5.id,
@@ -711,12 +1023,14 @@ async function main() {
     },
   });
 
+  // Concert
   await prisma.session.create({
     data: {
       dayId: day5.id,
       type: "exhibition",
-      titleZh: "展覽活動",
-      titleEn: "Exhibition Event",
+      titleZh: "音樂會：同一片天空下",
+      titleEn: "Concert: Under One Sky",
+      venue: "Main Hall at Harvard Art Museum",
       startTime: "19:00",
       duration: 120,
       sortOrder: 13,
@@ -731,6 +1045,8 @@ async function main() {
         name: "Student Organization Center at Hilles (SOCH)",
         nameZh: "哈佛大學學生社團中心",
         description: "學術發表、論壇及交流活動之主場地。",
+        descriptionEn: "Main venue for academic presentations, forums, and networking events.",
+        address: "59 Shepard St, Cambridge, MA 02138",
         type: "main",
         image: "/img/soch.webp",
       },
@@ -739,6 +1055,8 @@ async function main() {
         name: "Harvard CAMLab Cave",
         nameZh: "哈佛 CAMLab 洞窟",
         description: "「明心」沉浸式展覽場地。",
+        descriptionEn: "Venue for the \"Journey to Enlightenment\" immersive exhibition.",
+        address: "Adolphus Busch Hall, 29 Kirkland St, Cambridge, MA 02138",
         type: "exhibition",
       },
       {
@@ -746,15 +1064,10 @@ async function main() {
         name: "Harvard Adolphus Busch Hall",
         nameZh: "哈佛 Adolphus Busch Hall",
         description: "明心展覽開幕典禮場地。",
+        descriptionEn: "Venue for the Journey to Enlightenment exhibition opening ceremony.",
+        address: "29 Kirkland St, Cambridge, MA 02138",
         type: "exhibition",
         image: "/img/hall.jpg",
-      },
-      {
-        siteId: site.id,
-        name: "Harvard Faculty Club",
-        nameZh: "哈佛教職員俱樂部",
-        type: "evening",
-        image: "/img/music.webp",
       },
     ],
   });
@@ -780,11 +1093,29 @@ async function main() {
     { key: "description_body", value: "「全球共善學思會」匯聚國際佛學研究者、宗教實踐者與人文學者，以學術發表、圓桌論壇與沉浸式藝術體驗，深入探討應用佛教、菩薩道精神與佛教藝術的當代轉譯。本次學思會由慈濟基金會與哈佛大學 CAMLab 共同主辦，期盼在學術對話中，為佛教的未來開展新的視野與可能。" },
     { key: "description_body_en", value: "The Tzu Chi Global Symposium brings together international Buddhist scholars, religious practitioners, and humanities researchers for academic presentations, roundtable discussions, and immersive art experiences. Co-hosted by the Tzu Chi Foundation and Harvard University's CAMLab, this symposium explores applied Buddhism, the Bodhisattva path, and the contemporary translation of Buddhist art." },
     { key: "description_highlights", value: JSON.stringify([
-      { icon: "BookOpen", label: "多篇學術論文發表" },
-      { icon: "Lightbulb", label: "2 場圓桌論壇對話" },
-      { icon: "Heart", label: "跨宗派跨領域交流" },
-      { icon: "Globe", label: "來自全球的學者參與" },
+      { icon: "BookOpen", label: "6 場學術論文發表", labelEn: "6 Paper Sessions" },
+      { icon: "Lightbulb", label: "2 場圓桌論壇對話", labelEn: "2 Roundtable Discussions" },
+      { icon: "Users", label: "18 位國際學者", labelEn: "18 International Scholars" },
+      { icon: "Eye", label: "1 場沉浸式展覽", labelEn: "1 Immersive Exhibition" },
     ]) },
+    { key: "tour_header", value: "每梯次七十五分鐘\n三梯次，每梯次二十人" },
+    { key: "tour_header_en", value: "75 minutes per group\n3 groups, 20 people each" },
+    { key: "tour_groups", value: JSON.stringify([
+      { number: "01", title: "慈濟台灣與美國志工", titleEn: "Tzu Chi Volunteers (TW & US)", sub: "二十人一梯次，75 分鐘", subEn: "20 per group, 75 min", tag: "中文導覽", tagEn: "Chinese Tour" },
+      { number: "02", title: "大陸與台灣學者貴賓", titleEn: "Scholars & VIPs (CN & TW)", sub: "二十人一梯次，75 分鐘", subEn: "20 per group, 75 min", tag: "中文導覽", tagEn: "Chinese Tour" },
+      { number: "03", title: "歐美貴賓與學者", titleEn: "International Scholars & VIPs", sub: "二十人一梯次，75 分鐘", subEn: "20 per group, 75 min", tag: "英文導覽", tagEn: "English Tour" },
+    ]) },
+    { key: "organizers", value: "慈濟基金會 · Harvard CAMLab" },
+    { key: "copyright", value: "慈濟基金會 版權所有" },
+    { key: "banner_image", value: "/img/about-banner.jpg" },
+    { key: "og_title", value: "慈濟全球共善學思會" },
+    { key: "og_title_en", value: "Tzu Chi Global Symposium for Common Goodness" },
+    { key: "og_description", value: "應用佛法與當代菩薩道：前瞻佛教的未來 · 2026年5月5日─9日 · 哈佛大學" },
+    { key: "og_description_en", value: "Applied Buddhism and Contemporary Bodhisattva Path: Exploring the Future of Buddhism · May 5-9, 2026 · Harvard University" },
+    { key: "og_image", value: "/img/about-banner.jpg" },
+    { key: "speakers_subtitle", value: "來自世界各地的傑出學者與實踐者，共同分享佛教的當代智慧與願景。" },
+    { key: "speakers_subtitle_en", value: "Distinguished scholars and practitioners from around the world, sharing contemporary Buddhist wisdom and vision." },
+    { key: "site_language", value: "both" },
   ];
 
   for (const s of descSettings) {

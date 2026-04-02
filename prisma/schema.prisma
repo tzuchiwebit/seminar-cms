@@ -34,7 +34,7 @@ model Speaker {
   id          Int      @id @default(autoincrement())
   siteId      Int      @map("site_id")
   name        String   // 汪悅進
-  nameEn      String?  @map("name_en") // Eugene Wang
+  nameCn      String?  @map("name_cn") // 汪悅進
   affiliation String?  // Harvard University
   title       String?  // Professor, CAMLab Director
   bio         String?
@@ -132,8 +132,10 @@ model Venue {
   siteId      Int      @map("site_id")
   name        String   // Student Organization Center at Hilles (SOCH)
   nameZh      String?  @map("name_zh") // 哈佛大學學生社團中心
-  description String?
-  address     String?
+  description   String?
+  descriptionEn String?  @map("description_en")
+  address       String?
+  mapUrl        String?  @map("map_url")
   type        String   @default("main") // main, evening, exhibition
   capacity    Int?
   image       String?

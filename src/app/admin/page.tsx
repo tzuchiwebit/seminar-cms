@@ -11,7 +11,6 @@ import {
   Users,
   BarChart3,
   Image,
-  Settings,
   X,
   Trash2,
   LogOut,
@@ -42,15 +41,11 @@ type UserItem = {
   emailVerified: string | null;
 };
 
-type Tab = "sites" | "users" | "templates" | "analytics" | "media" | "settings";
+type Tab = "sites" | "users";
 
 const sideNav: { label: string; key: Tab; icon: typeof Globe }[] = [
   { label: "網站管理", key: "sites", icon: Globe },
-  { label: "範本", key: "templates", icon: LayoutTemplate },
   { label: "使用者", key: "users", icon: Users },
-  { label: "數據分析", key: "analytics", icon: BarChart3 },
-  { label: "媒體庫", key: "media", icon: Image },
-  { label: "設定", key: "settings", icon: Settings },
 ];
 
 type Filter = "All Websites" | "published" | "draft";
@@ -82,11 +77,10 @@ export default function AllWebsitesPage() {
   // Form state
   const [formName, setFormName] = useState("");
   const [formSlug, setFormSlug] = useState("");
-  const [formDomain, setFormDomain] = useState("");
   const [formStatus, setFormStatus] = useState("draft");
+  const [formLang, setFormLang] = useState("both");
   const [formStartDate, setFormStartDate] = useState("");
   const [formEndDate, setFormEndDate] = useState("");
-  const [formDesc, setFormDesc] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const fallbackSites: Site[] = [
@@ -94,7 +88,7 @@ export default function AllWebsitesPage() {
       id: 0,
       name: "全球共善學思會",
       slug: "symposium",
-      domain: "symposium.tzuchi.org",
+      domain: null,
       status: "published",
       createdAt: "2026-01-15T00:00:00.000Z",
       updatedAt: new Date().toISOString(),
@@ -136,25 +130,23 @@ export default function AllWebsitesPage() {
         body: JSON.stringify({
           name: formName,
           slug: formSlug,
-          domain: formDomain || null,
+          domain: null,
           status: formStatus,
         }),
       });
       if (res.ok) {
         // Save start/end date as site settings if provided
         const site = await res.json();
-        if (formStartDate || formEndDate || formDesc) {
-          const settings = [];
-          if (formStartDate) settings.push({ key: "eventStartDate", value: formStartDate });
-          if (formEndDate) settings.push({ key: "eventEndDate", value: formEndDate });
-          if (formDesc) settings.push({ key: "description", value: formDesc });
-          for (const s of settings) {
-            await fetch("/api/sites/" + site.id, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ ...site, ...s }),
-            });
-          }
+        const settingsPairs = [];
+        if (formStartDate) settingsPairs.push({ key: "eventStartDate", value: formStartDate });
+        if (formEndDate) settingsPairs.push({ key: "eventEndDate", value: formEndDate });
+        settingsPairs.push({ key: "site_language", value: formLang });
+        for (const s of settingsPairs) {
+          await fetch(`/api/sites/${site.id}/settings`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(s),
+          });
         }
         setShowCreateModal(false);
         resetForm();
@@ -182,11 +174,10 @@ export default function AllWebsitesPage() {
   const resetForm = () => {
     setFormName("");
     setFormSlug("");
-    setFormDomain("");
     setFormStatus("draft");
+    setFormLang("both");
     setFormStartDate("");
     setFormEndDate("");
-    setFormDesc("");
   };
 
   // Auto-generate slug from name
@@ -217,7 +208,7 @@ export default function AllWebsitesPage() {
   return (
     <div className="min-h-screen bg-cream flex">
       {/* Sidebar */}
-      <aside className="w-[260px] bg-sidebar fixed left-0 top-0 bottom-0 flex flex-col z-50">
+      <aside className="w-[220px] bg-sidebar fixed left-0 top-0 bottom-0 flex flex-col z-50">
         <div className="px-5 py-6 border-b border-white/10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-gold flex items-center justify-center text-white font-serif text-lg">
@@ -232,7 +223,7 @@ export default function AllWebsitesPage() {
           </div>
         </div>
 
-        <nav className="flex-1 py-4">
+        <nav className="flex-1 py-4 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           <ul className="space-y-0.5">
             {sideNav.map((item) => {
               const Icon = item.icon;
@@ -284,7 +275,7 @@ export default function AllWebsitesPage() {
       </aside>
 
       {/* Main Content */}
-      <main className="ml-[260px] flex-1 p-8">
+      <main className="ml-[220px] flex-1 p-8">
         {activeTab === "users" ? (
           <UsersPanel users={users} />
         ) : activeTab !== "sites" ? (
@@ -390,7 +381,7 @@ export default function AllWebsitesPage() {
                           <p className="text-sm font-medium text-dark">
                             {site.name}
                           </p>
-                          <p className="text-xs text-muted">{site.domain || `/${site.slug}`}</p>
+                          <p className="text-xs text-muted">/{site.slug}</p>
                         </div>
                       </div>
                     </td>
@@ -498,33 +489,34 @@ export default function AllWebsitesPage() {
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-5">
-                <div>
-                  <label className="block text-sm font-medium text-dark mb-1.5">網址路徑</label>
-                  <div className="flex items-center border border-border rounded-lg overflow-hidden focus-within:border-gold focus-within:ring-1 focus-within:ring-gold/20 transition-colors">
-                    <span className="px-3.5 py-2.5 bg-cream text-sm text-muted border-r border-border shrink-0">
-                      yoursite.com/
-                    </span>
-                    <input
-                      type="text"
-                      value={formSlug}
-                      onChange={(e) => setFormSlug(e.target.value)}
-                      placeholder="gratitude-2026"
-                      className="w-full px-3.5 py-2.5 text-sm focus:outline-none"
-                    />
-                  </div>
-                  <p className="text-xs text-muted-light mt-1">公開網址及此網站的資料路徑</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-dark mb-1.5">網域</label>
+              <div>
+                <label className="block text-sm font-medium text-dark mb-1.5">網址路徑</label>
+                <div className="flex items-center border border-border rounded-lg overflow-hidden focus-within:border-gold focus-within:ring-1 focus-within:ring-gold/20 transition-colors">
+                  <span className="px-3.5 py-2.5 bg-cream text-sm text-muted border-r border-border shrink-0">
+                    /
+                  </span>
                   <input
                     type="text"
-                    value={formDomain}
-                    onChange={(e) => setFormDomain(e.target.value)}
-                    placeholder="e.g. gratitude.tzuchi.org"
-                    className="w-full px-3.5 py-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/20 transition-colors"
+                    value={formSlug}
+                    onChange={(e) => setFormSlug(e.target.value)}
+                    placeholder="gratitude-2026"
+                    className="w-full px-3.5 py-2.5 text-sm focus:outline-none"
                   />
                 </div>
+                <p className="text-xs text-muted-light mt-1">此網站的公開網址路徑</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-dark mb-1.5">網站語言</label>
+                <select
+                  value={formLang}
+                  onChange={(e) => setFormLang(e.target.value)}
+                  className="w-full px-3.5 py-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/20 transition-colors bg-white"
+                >
+                  <option value="en">English</option>
+                  <option value="zh">中文</option>
+                  <option value="both">中文 + English（雙語）</option>
+                </select>
+                <p className="text-xs text-muted-light mt-1">決定網站顯示的語言</p>
               </div>
               <div className="grid grid-cols-2 gap-5">
                 <div>
@@ -545,16 +537,6 @@ export default function AllWebsitesPage() {
                     className="w-full px-3.5 py-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/20 transition-colors"
                   />
                 </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-dark mb-1.5">說明</label>
-                <textarea
-                  rows={3}
-                  value={formDesc}
-                  onChange={(e) => setFormDesc(e.target.value)}
-                  placeholder="簡短描述此活動..."
-                  className="w-full px-3.5 py-2.5 border border-border rounded-lg text-sm resize-none focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/20 transition-colors"
-                />
               </div>
             </div>
 

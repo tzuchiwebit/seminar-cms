@@ -23,9 +23,8 @@ const notoSansTC = Noto_Sans_TC({
 });
 
 export const metadata: Metadata = {
-  title: "Tzu Chi Global Symposium 2026",
-  description:
-    "Applied Buddhism and the Contemporary Bodhisattva Path: Exploring the Future of Buddhism — May 7–9, 2026 at Harvard University",
+  title: "Seminar CMS",
+  description: "Multi-site Event Management System",
 };
 
 export default function RootLayout({

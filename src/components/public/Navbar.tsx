@@ -1,82 +1,51 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 
-export default function Navbar({ slug }: { slug: string }) {
-  const [lang, setLang] = useState<"zh" | "en">("zh");
+export default function Navbar({ slug, lang, settings }: { slug: string; lang: "zh" | "en"; settings: Record<string, string> }) {
   const base = `/${slug}`;
 
-  const navLinks =
+  const allLinks =
     lang === "zh"
       ? [
-          { href: `${base}#description`, label: "關於" },
-          { href: `${base}#exhibition`, label: "展覽" },
-          { href: `${base}#programme`, label: "議程" },
-          { href: `${base}#tour`, label: "導覽" },
-          { href: `${base}#venue`, label: "地點" },
-          { href: `${base}#speakers`, label: "講者" },
+          { href: `${base}#description`, label: "關於", section: "description" },
+          { href: `${base}#exhibition`, label: "展覽", section: "exhibition" },
+          { href: `${base}#programme`, label: "議程", section: "programme" },
+          { href: `${base}#tour`, label: "導覽", section: "tour" },
+          { href: `${base}#venue`, label: "地點", section: "venues" },
+          { href: `${base}#speakers`, label: "講者", section: "speakers" },
         ]
       : [
-          { href: `${base}#about`, label: "About" },
-          { href: `${base}#exhibition`, label: "Exhibition" },
-          { href: `${base}#programme`, label: "Programme" },
-          { href: `${base}#tour`, label: "Tour" },
-          { href: `${base}#venue`, label: "Venue" },
-          { href: `${base}#speakers`, label: "Speakers" },
+          { href: `${base}#about`, label: "About", section: "description" },
+          { href: `${base}#exhibition`, label: "Exhibition", section: "exhibition" },
+          { href: `${base}#programme`, label: "Programme", section: "programme" },
+          { href: `${base}#tour`, label: "Tour", section: "tour" },
+          { href: `${base}#venue`, label: "Venue", section: "venues" },
+          { href: `${base}#speakers`, label: "Speakers", section: "speakers" },
         ];
 
-  return (
-    <header className="sticky top-0 z-50 bg-cream border-b border-border">
-      <div className="mx-auto max-w-7xl px-6 flex items-center justify-between h-16">
-        {/* Logo */}
-        <Link href={base} className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full border-2 border-gold flex items-center justify-center">
-            <span className="font-serif text-gold text-lg font-bold leading-none">
-              善
-            </span>
-          </div>
-          <span className="font-inter text-sm font-medium tracking-wide text-dark hidden sm:inline">
-            {lang === "zh" ? "慈濟全球共善學思會" : "Tzu Chi Global Symposium"}
-          </span>
-        </Link>
+  const navLinks = allLinks.filter(
+    (link) => settings[`section_${link.section}_visible`] !== "false"
+  );
 
-        {/* Nav Links */}
-        <nav className="hidden md:flex items-center gap-8">
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="font-inter text-sm text-muted hover:text-dark transition-colors"
-            >
-              {link.label}
-            </Link>
+  return (
+    <header className="sticky top-0 z-50 bg-[#F5F1EB] border-b border-[#E5E0D8]">
+      <div className="mx-auto max-w-7xl px-6 flex items-center justify-center h-16">
+        <nav className="flex items-center gap-2">
+          {navLinks.map((link, i) => (
+            <span key={link.href} className="flex items-center">
+              <Link
+                href={link.href}
+                className="font-inter text-[14px] tracking-[0.08em] uppercase text-[#5A554B] hover:text-[#9B7B2F] font-medium px-5 py-2 rounded-full hover:bg-[#9B7B2F]/5 transition-all"
+              >
+                {link.label}
+              </Link>
+              {i < navLinks.length - 1 && (
+                <span className="w-1 h-1 rounded-full bg-[#9B7B2F]/20" />
+              )}
+            </span>
           ))}
         </nav>
-
-        {/* Language Toggle */}
-        <div className="flex items-center bg-cream-dark rounded-full p-0.5 border border-border">
-          <button
-            onClick={() => setLang("zh")}
-            className={`font-inter text-xs font-medium px-3.5 py-1.5 rounded-full transition-all ${
-              lang === "zh"
-                ? "bg-dark text-cream shadow-sm"
-                : "text-muted hover:text-dark"
-            }`}
-          >
-            中文
-          </button>
-          <button
-            onClick={() => setLang("en")}
-            className={`font-inter text-xs font-medium px-3.5 py-1.5 rounded-full transition-all ${
-              lang === "en"
-                ? "bg-dark text-cream shadow-sm"
-                : "text-muted hover:text-dark"
-            }`}
-          >
-            EN
-          </button>
-        </div>
       </div>
     </header>
   );

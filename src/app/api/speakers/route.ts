@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     data: {
       siteId: body.siteId,
       name: body.name,
-      nameEn: body.nameEn,
+      nameCn: body.nameCn,
       affiliation: body.affiliation,
       title: body.title,
       bio: body.bio,

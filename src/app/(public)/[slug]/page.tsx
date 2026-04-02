@@ -16,12 +16,18 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
   const serializedDays = JSON.parse(JSON.stringify(days));
   const serializedSpeakers = JSON.parse(JSON.stringify(speakers));
 
+  const serializedExhibitions = JSON.parse(JSON.stringify(site.exhibitions));
+  const serializedVenues = JSON.parse(JSON.stringify(site.venues));
+
   return (
     <HomePage
       days={serializedDays}
       speakers={serializedSpeakers}
       settings={settings}
       siteName={site.name}
+      slug={slug}
+      exhibitions={serializedExhibitions}
+      venues={serializedVenues}
     />
   );
 }

@@ -34,7 +34,7 @@ export async function PUT(
     where: { id: parseInt(id) },
     data: {
       name: body.name,
-      nameEn: body.nameEn,
+      nameCn: body.nameCn,
       affiliation: body.affiliation,
       title: body.title,
       bio: body.bio,

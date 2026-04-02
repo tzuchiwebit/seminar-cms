@@ -16,9 +16,10 @@ interface Speaker {
 interface SpeakerModalProps {
   speaker: Speaker | null;
   onClose: () => void;
+  lang?: "zh" | "en";
 }
 
-export default function SpeakerModal({ speaker, onClose }: SpeakerModalProps) {
+export default function SpeakerModal({ speaker, onClose, lang = "zh" }: SpeakerModalProps) {
   if (!speaker) return null;
 
   return (
@@ -61,10 +62,10 @@ export default function SpeakerModal({ speaker, onClose }: SpeakerModalProps) {
           {/* About */}
           <div className="mb-6">
             <p className="font-inter text-gold text-xs tracking-[0.15em] uppercase font-medium mb-3">
-              About
+              {lang === "en" ? "About" : "關於"}
             </p>
             <p className="font-sans text-muted text-sm leading-relaxed">
-              {speaker.bio || `${speaker.name}為${speaker.affiliation}${speaker.title}，長期致力於佛教藝術與視覺文化研究。`}
+              {speaker.bio || `${speaker.name}${speaker.affiliation ? `, ${speaker.affiliation}` : ""}${speaker.title ? ` — ${speaker.title}` : ""}`}
             </p>
           </div>
 
@@ -72,7 +73,7 @@ export default function SpeakerModal({ speaker, onClose }: SpeakerModalProps) {
           {speaker.topicZh && (
             <div className="mb-6">
               <p className="font-inter text-gold text-xs tracking-[0.15em] uppercase font-medium mb-3">
-                主題 Topic
+                {lang === "en" ? "Topic" : "主題"}
               </p>
               <p className="font-serif text-dark font-semibold mb-1">
                 {speaker.topicZh}
@@ -89,7 +90,7 @@ export default function SpeakerModal({ speaker, onClose }: SpeakerModalProps) {
           {speaker.papers && speaker.papers.length > 0 && (
             <div className="mb-6">
               <p className="font-inter text-gold text-xs tracking-[0.15em] uppercase font-medium mb-3">
-                論文 Paper
+                {lang === "en" ? "Papers" : "論文"}
               </p>
               <ul className="space-y-2">
                 {speaker.papers.map((paper, i) => (

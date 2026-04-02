@@ -60,7 +60,7 @@ export default function Sidebar() {
               全球共善學思會
             </div>
             <div className="text-white/40 text-xs truncate">
-              symposium.tzuchi.org
+              /symposium
             </div>
           </div>
         </div>
