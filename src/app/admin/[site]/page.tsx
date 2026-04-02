@@ -3,7 +3,49 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useSession } from "next-auth/react";
+import pb from "@/lib/pb";
+import { useAuth } from "@/hooks/useAuth";
+
+async function upsertSetting(siteId: string, key: string, value: string) {
+  try {
+    const existing = await pb.collection("site_settings").getFirstListItem(`site="${siteId}" && key="${key}"`);
+    await pb.collection("site_settings").update(existing.id, { value });
+  } catch {
+    await pb.collection("site_settings").create({ site: siteId, key, value });
+  }
+}
+
+async function loadSettings(siteId: string): Promise<Record<string, string>> {
+  const records = await pb.collection("site_settings").getFullList({ filter: `site="${siteId}"` });
+  const data: Record<string, string> = {};
+  for (const r of records) data[r.key] = r.value;
+  return data;
+}
+
+async function loadProgrammeData(siteId: string) {
+  const days = await pb.collection("days").getFullList({ filter: `site="${siteId}"`, sort: "dayNumber" });
+  const dayIds = days.map(d => d.id);
+  let sessions: any[] = [];
+  let sessionSpeakerRecords: any[] = [];
+  let papers: any[] = [];
+  if (dayIds.length > 0) {
+    sessions = await pb.collection("sessions").getFullList({ filter: dayIds.map(id => `day="${id}"`).join(" || "), sort: "sortOrder" });
+    const sessionIds = sessions.map(s => s.id);
+    if (sessionIds.length > 0) {
+      const ssFilter = sessionIds.map(id => `session="${id}"`).join(" || ");
+      sessionSpeakerRecords = await pb.collection("session_speakers").getFullList({ filter: ssFilter, expand: "speaker" });
+      papers = await pb.collection("papers").getFullList({ filter: ssFilter, sort: "sortOrder", expand: "speaker" });
+    }
+  }
+  return days.map(day => ({
+    ...day,
+    sessions: sessions.filter(s => s.day === day.id).map(s => ({
+      ...s,
+      sessionSpeakers: sessionSpeakerRecords.filter(ss => ss.session === s.id).map(ss => ({ ...ss, speaker: ss.expand?.speaker || null })),
+      papers: papers.filter(p => p.session === s.id).map(p => ({ ...p, speaker: p.expand?.speaker || null })),
+    })),
+  }));
+}
 import {
 
   Users,
@@ -165,7 +207,7 @@ type HighlightItem = { icon: string; label: string; labelEn?: string };
 /* ═══════════════════════════════════════════
    APPEARANCE PANEL
    ═══════════════════════════════════════════ */
-function AppearancePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: string) => void }) {
+function AppearancePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: string) => void }) {
   const [favicon, setFavicon] = useState("");
   const [banner, setBanner] = useState("");
   const [bannerMobile, setBannerMobile] = useState("");
@@ -180,9 +222,7 @@ function AppearancePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: 
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch(`/api/sites/${siteId}/settings`);
-        if (!res.ok) return;
-        const data = await res.json();
+        const data = await loadSettings(siteId);
         if (data.favicon) setFavicon(data.favicon);
         if (data.banner_image) setBanner(data.banner_image);
         if (data.banner_image_mobile) setBannerMobile(data.banner_image_mobile);
@@ -212,11 +252,7 @@ function AppearancePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: 
         { key: "og_image", value: ogImage },
       ];
       for (const pair of pairs) {
-        await fetch(`/api/sites/${siteId}/settings`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(pair),
-        });
+        await upsertSetting(siteId, pair.key, pair.value);
       }
       onToast?.("儲存成功");
     } catch {
@@ -228,20 +264,18 @@ function AppearancePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: "favicon" | "banner" | "banner-mobile" | "og") => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("siteId", String(siteId));
-    formData.append("category", "general");
     try {
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      if (res.ok) {
-        const data = await res.json();
-        if (field === "favicon") setFavicon(data.path);
-        else if (field === "banner") { setBanner(data.path); if (!ogImage) setOgImage(data.path); }
-        else if (field === "banner-mobile") setBannerMobile(data.path);
-        else setOgImage(data.path);
-        onToast?.("上傳成功");
-      }
+      const formData = new FormData();
+      formData.append("site", siteId);
+      formData.append("file", file);
+      formData.append("category", "general");
+      const record = await pb.collection("uploads").create(formData);
+      const url = pb.files.getURL(record, record.file);
+      if (field === "favicon") setFavicon(url);
+      else if (field === "banner") { setBanner(url); if (!ogImage) setOgImage(url); }
+      else if (field === "banner-mobile") setBannerMobile(url);
+      else setOgImage(url);
+      onToast?.("上傳成功");
     } catch {
       onToast?.("上傳失敗");
     }
@@ -383,7 +417,7 @@ function AppearancePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: 
   );
 }
 
-function DescriptionPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: string) => void }) {
+function DescriptionPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: string) => void }) {
   const [headlineZh, setHeadlineZh] = useState("");
   const [headlineEn, setHeadlineEn] = useState("");
   const [bodyZh, setBodyZh] = useState("");
@@ -395,9 +429,7 @@ function DescriptionPanel({ siteId, onToast }: { siteId: number; onToast?: (msg:
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch(`/api/sites/${siteId}/settings`);
-        if (!res.ok) return;
-        const data = await res.json();
+        const data = await loadSettings(siteId);
         if (data.description_headline) setHeadlineZh(data.description_headline);
         if (data.description_headline_en) setHeadlineEn(data.description_headline_en);
         if (data.description_body) setBodyZh(data.description_body);
@@ -425,11 +457,7 @@ function DescriptionPanel({ siteId, onToast }: { siteId: number; onToast?: (msg:
         { key: "description_highlights", value: JSON.stringify(highlights) },
       ];
       for (const pair of pairs) {
-        await fetch(`/api/sites/${siteId}/settings`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(pair),
-        });
+        await upsertSetting(siteId, pair.key, pair.value);
       }
       onToast?.("儲存成功");
     } catch (e) {
@@ -549,7 +577,7 @@ function DescriptionPanel({ siteId, onToast }: { siteId: number; onToast?: (msg:
   );
 }
 
-function SpeakersPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: string) => void }) {
+function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: string) => void }) {
   const [speakers, setSpeakers] = useState<any[]>([]);
   const [filter, setFilter] = useState("All");
   const [showForm, setShowForm] = useState(false);
@@ -558,9 +586,7 @@ function SpeakersPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: st
 
   const fetchSpeakers = useCallback(async () => {
     try {
-      const res = await fetch(`/api/speakers?siteId=${siteId}`);
-      if (!res.ok) return;
-      const data = await res.json();
+      const data = await pb.collection("speakers").getFullList({ filter: `site="${siteId}"`, sort: "sortOrder" });
       setSpeakers(data);
     } catch { /* ignore */ }
   }, [siteId]);
@@ -581,7 +607,7 @@ function SpeakersPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: st
       name: item.name || "",
       nameCn: item.nameCn || "",
       affiliation: item.affiliation || "",
-      title: item.title || "",
+      title: item.title_field || item.title || "",
       bio: item.bio || "",
       status: item.status || "draft",
     });
@@ -590,18 +616,11 @@ function SpeakersPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: st
 
   const handleSave = async () => {
     try {
+      const pbData = { name: form.name, nameCn: form.nameCn, affiliation: form.affiliation, title_field: form.title, bio: form.bio, status: form.status };
       if (editing) {
-        await fetch(`/api/speakers/${editing.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
-        });
+        await pb.collection("speakers").update(editing.id, pbData);
       } else {
-        await fetch("/api/speakers", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...form, siteId }),
-        });
+        await pb.collection("speakers").create({ ...pbData, site: siteId });
       }
       setShowForm(false);
       fetchSpeakers();
@@ -612,10 +631,10 @@ function SpeakersPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: st
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     if (!confirm("確定刪除？")) return;
     try {
-      await fetch(`/api/speakers/${id}`, { method: "DELETE" });
+      await pb.collection("speakers").delete(id);
       fetchSpeakers();
       onToast?.("刪除成功");
     } catch (e) {
@@ -666,7 +685,7 @@ function SpeakersPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: st
                 </td>
                 <td className="px-6 py-4 text-xs text-muted">{s.affiliation}</td>
                 <td className="px-6 py-4 text-xs text-muted">
-                  {s.title}
+                  {s.title_field || s.title}
                   {s.papers && s.papers.length > 0 && (
                     <div className="mt-1 space-y-0.5">
                       {s.papers.map((p: any) => (
@@ -736,7 +755,7 @@ function SpeakersPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: st
   );
 }
 
-function ProgrammePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: string) => void }) {
+function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: string) => void }) {
   const [days, setDays] = useState<any[]>([]);
   const [activeDay, setActiveDay] = useState(0);
   const [showForm, setShowForm] = useState(false);
@@ -745,13 +764,13 @@ function ProgrammePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: s
   const [allSpeakers, setAllSpeakers] = useState<any[]>([]);
 
   // Session speakers/papers editing
-  const [sessionModerators, setSessionModerators] = useState<number[]>([]);
-  const [sessionSpeakers, setSessionSpeakersList] = useState<number[]>([]);
-  const [sessionDiscussants, setSessionDiscussants] = useState<number[]>([]);
+  const [sessionModerators, setSessionModerators] = useState<string[]>([]);
+  const [sessionSpeakers, setSessionSpeakersList] = useState<string[]>([]);
+  const [sessionDiscussants, setSessionDiscussants] = useState<string[]>([]);
   const [newRole, setNewRole] = useState("speaker");
   const [speakerSearch, setSpeakerSearch] = useState("");
   const [speakerDropdownOpen, setSpeakerDropdownOpen] = useState(false);
-  const [paperTitles, setPaperTitles] = useState<Record<number, string>>({});
+  const [paperTitles, setPaperTitles] = useState<Record<string, string>>({});
   const speakerDropdownRef = useRef<HTMLDivElement>(null);
 
   // Close speaker dropdown on click outside
@@ -772,15 +791,13 @@ function ProgrammePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: s
 
   const fetchProgramme = useCallback(async () => {
     try {
-      const res = await fetch(`/api/programme?siteId=${siteId}`);
-      if (!res.ok) return;
-      const data = await res.json();
+      const data = await loadProgrammeData(siteId);
       setDays(data);
     } catch { /* ignore */ }
     // Also fetch all speakers for assignment
     try {
-      const spkRes = await fetch(`/api/speakers?siteId=${siteId}`);
-      if (spkRes.ok) setAllSpeakers(await spkRes.json());
+      const spkData = await pb.collection("speakers").getFullList({ filter: `site="${siteId}"`, sort: "sortOrder" });
+      setAllSpeakers(spkData);
     } catch { /* ignore */ }
   }, [siteId]);
 
@@ -808,17 +825,9 @@ function ProgrammePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: s
   const handleSaveDay = async () => {
     try {
       if (editingDay) {
-        await fetch(`/api/days/${editingDay.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(dayForm),
-        });
+        await pb.collection("days").update(editingDay.id, dayForm);
       } else {
-        await fetch("/api/programme", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: "day", siteId, dayNumber: days.length + 1, ...dayForm }),
-        });
+        await pb.collection("days").create({ site: siteId, dayNumber: days.length + 1, ...dayForm });
       }
       setShowDayForm(false);
       fetchProgramme();
@@ -831,7 +840,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: s
   const handleDeleteDay = async (d: any) => {
     if (!confirm(`確定刪除 Day ${d.dayNumber}？所有場次也會一起刪除。`)) return;
     try {
-      await fetch(`/api/days/${d.id}`, { method: "DELETE" });
+      await pb.collection("days").delete(d.id);
       if (activeDay >= days.length - 1) setActiveDay(Math.max(0, days.length - 2));
       fetchProgramme();
       onToast?.("日程已刪除");
@@ -840,7 +849,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: s
     }
   };
 
-  const addSpeakerToSession = (speakerId: number) => {
+  const addSpeakerToSession = (speakerId: string) => {
     if (newRole === "moderator") setSessionModerators([...sessionModerators, speakerId]);
     else if (newRole === "speaker") setSessionSpeakersList([...sessionSpeakers, speakerId]);
     else setSessionDiscussants([...sessionDiscussants, speakerId]);
@@ -850,17 +859,10 @@ function ProgrammePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: s
 
   const handleQuickCreateSpeaker = async () => {
     try {
-      const res = await fetch("/api/speakers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ siteId, name: speakerSearch, status: "confirmed" }),
-      });
-      if (res.ok) {
-        const newSpeaker = await res.json();
-        setAllSpeakers([...allSpeakers, newSpeaker]);
-        addSpeakerToSession(newSpeaker.id);
-        onToast?.(`已新增講者「${speakerSearch}」`);
-      }
+      const newSpeaker = await pb.collection("speakers").create({ site: siteId, name: speakerSearch, status: "confirmed" });
+      setAllSpeakers([...allSpeakers, newSpeaker]);
+      addSpeakerToSession(newSpeaker.id);
+      onToast?.(`已新增講者「${speakerSearch}」`);
     } catch { onToast?.("新增失敗"); }
   };
 
@@ -895,9 +897,9 @@ function ProgrammePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: s
     setSessionSpeakersList(spkrs.filter((ss: any) => ss.role === "speaker").map((ss: any) => ss.speaker?.id).filter(Boolean));
     setSessionDiscussants(spkrs.filter((ss: any) => ss.role === "discussant").map((ss: any) => ss.speaker?.id).filter(Boolean));
     // Load paper titles for editing
-    const ptitles: Record<number, string> = {};
+    const ptitles: Record<string, string> = {};
     for (const p of (session.papers || [])) {
-      if (p.speakerId) ptitles[p.speakerId] = p.titleEn || p.titleZh || "";
+      if (p.speaker?.id) ptitles[p.speaker.id] = p.titleEn || p.titleZh || "";
     }
     setPaperTitles(ptitles);
     setShowForm(true);
@@ -905,26 +907,43 @@ function ProgrammePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: s
 
   const handleSave = async () => {
     try {
+      const sessionData = {
+        type: form.sessionType,
+        titleZh: form.titleZh,
+        titleEn: form.titleEn,
+        subtitleZh: form.subtitleZh,
+        subtitleEn: form.subtitleEn,
+        startTime: form.startTime,
+        duration: form.duration,
+        venue: form.venue,
+        sortOrder: form.sortOrder,
+      };
+      let sessionId: string;
       if (editing) {
-        await fetch(`/api/sessions/${editing.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...form,
-            speakerAssignments: {
-              moderators: sessionModerators,
-              speakers: sessionSpeakers,
-              discussants: sessionDiscussants,
-              paperTitles: paperTitles,
-            },
-          }),
-        });
+        await pb.collection("sessions").update(editing.id, sessionData);
+        sessionId = editing.id;
+        // Clear existing session_speakers and papers for this session
+        const existingSS = await pb.collection("session_speakers").getFullList({ filter: `session="${sessionId}"` });
+        for (const ss of existingSS) await pb.collection("session_speakers").delete(ss.id);
+        const existingPapers = await pb.collection("papers").getFullList({ filter: `session="${sessionId}"` });
+        for (const p of existingPapers) await pb.collection("papers").delete(p.id);
       } else {
-        await fetch("/api/programme", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: "session", dayId: day.id, ...form }),
-        });
+        const created = await pb.collection("sessions").create({ day: day.id, ...sessionData });
+        sessionId = created.id;
+      }
+      // Create session_speakers and papers
+      for (const spkId of sessionModerators) {
+        await pb.collection("session_speakers").create({ session: sessionId, speaker: spkId, role: "moderator" });
+      }
+      let paperOrder = 1;
+      for (const spkId of sessionSpeakers) {
+        await pb.collection("session_speakers").create({ session: sessionId, speaker: spkId, role: "speaker" });
+        if (paperTitles[spkId]) {
+          await pb.collection("papers").create({ session: sessionId, speaker: spkId, titleEn: paperTitles[spkId], sortOrder: paperOrder++ });
+        }
+      }
+      for (const spkId of sessionDiscussants) {
+        await pb.collection("session_speakers").create({ session: sessionId, speaker: spkId, role: "discussant" });
       }
       setShowForm(false);
       fetchProgramme();
@@ -935,10 +954,10 @@ function ProgrammePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: s
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     if (!confirm("確定刪除？")) return;
     try {
-      await fetch(`/api/sessions/${id}`, { method: "DELETE" });
+      await pb.collection("sessions").delete(id);
       fetchProgramme();
       onToast?.("刪除成功");
     } catch (e) {
@@ -1298,7 +1317,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: number; onToast?: (msg: s
 }
 
 
-function VenuesPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: string) => void }) {
+function VenuesPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: string) => void }) {
   const [venues, setVenues] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
@@ -1306,9 +1325,7 @@ function VenuesPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: stri
 
   const fetchVenues = useCallback(async () => {
     try {
-      const res = await fetch(`/api/venues?siteId=${siteId}`);
-      if (!res.ok) return;
-      const data = await res.json();
+      const data = await pb.collection("venues").getFullList({ filter: `site="${siteId}"` });
       setVenues(data);
     } catch { /* ignore */ }
   }, [siteId]);
@@ -1338,17 +1355,9 @@ function VenuesPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: stri
     try {
       const payload = { ...form };
       if (editing) {
-        await fetch(`/api/venues/${editing.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
+        await pb.collection("venues").update(editing.id, payload);
       } else {
-        await fetch("/api/venues", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...payload, siteId }),
-        });
+        await pb.collection("venues").create({ ...payload, site: siteId });
       }
       setShowForm(false);
       fetchVenues();
@@ -1359,10 +1368,10 @@ function VenuesPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: stri
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     if (!confirm("確定刪除？")) return;
     try {
-      await fetch(`/api/venues/${id}`, { method: "DELETE" });
+      await pb.collection("venues").delete(id);
       fetchVenues();
       onToast?.("刪除成功");
     } catch (e) {
@@ -1441,37 +1450,31 @@ function VenuesPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: stri
   );
 }
 
-function RegistrationsPanel({ siteId }: { siteId: number }) {
+function RegistrationsPanel({ siteId }: { siteId: string }) {
   const [registrations, setRegistrations] = useState<any[]>([]);
 
   const fetchRegistrations = useCallback(async () => {
     try {
-      const res = await fetch(`/api/registrations?siteId=${siteId}`);
-      if (!res.ok) return;
-      const data = await res.json();
+      const data = await pb.collection("registrations").getFullList({ filter: `site="${siteId}"`, sort: "-created" });
       setRegistrations(data);
     } catch { /* ignore */ }
   }, [siteId]);
 
   useEffect(() => { fetchRegistrations(); }, [fetchRegistrations]);
 
-  const handleStatusChange = async (id: number, status: string) => {
+  const handleStatusChange = async (id: string, status: string) => {
     try {
-      await fetch(`/api/registrations/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
+      await pb.collection("registrations").update(id, { status });
       fetchRegistrations();
     } catch (e) {
       console.error("Failed to update registration", e);
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     if (!confirm("確定刪除？")) return;
     try {
-      await fetch(`/api/registrations/${id}`, { method: "DELETE" });
+      await pb.collection("registrations").delete(id);
       fetchRegistrations();
     } catch (e) {
       console.error("Failed to delete registration", e);
@@ -1513,7 +1516,7 @@ function RegistrationsPanel({ siteId }: { siteId: number }) {
                     <option value="cancelled">已取消</option>
                   </select>
                 </td>
-                <td className="px-6 py-4 text-sm text-muted">{r.createdAt ? new Date(r.createdAt).toLocaleDateString() : ""}</td>
+                <td className="px-6 py-4 text-sm text-muted">{r.created ? new Date(r.created).toLocaleDateString() : ""}</td>
                 <td className="px-6 py-4">
                   <div className="flex items-center justify-end gap-2">
                     <button onClick={() => handleDelete(r.id)} className="p-1.5 text-muted hover:text-red-600 rounded-md hover:bg-red-50"><Trash2 className="w-4 h-4" /></button>
@@ -1595,23 +1598,18 @@ function StylesPanel({ siteSlug }: { siteSlug: string }) {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({ "標題": true, "內文": false, "小字": false });
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [siteId, setSiteId] = useState<number | null>(null);
+  const [siteId, setSiteId] = useState<string | null>(null);
 
   // Resolve slug to site ID, then fetch settings
   useEffect(() => {
     async function load() {
       try {
-        // Get all sites and find by slug
-        const sitesRes = await fetch("/api/sites");
-        if (!sitesRes.ok) return;
-        const sites = await sitesRes.json();
-        const site = sites.find((s: { slug: string }) => s.slug === siteSlug);
+        // Get site by slug
+        const site = await pb.collection("sites").getFirstListItem(`slug="${siteSlug}"`);
         if (!site) return;
         setSiteId(site.id);
 
-        const res = await fetch(`/api/sites/${site.id}/settings`);
-        if (!res.ok) return;
-        const data = await res.json();
+        const data = await loadSettings(site.id);
 
         if (data.theme_colors) {
           try {
@@ -1639,16 +1637,8 @@ function StylesPanel({ siteSlug }: { siteSlug: string }) {
     if (!siteId) return;
     setSaving(true);
     try {
-      await fetch(`/api/sites/${siteId}/settings`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: "theme_colors", value: JSON.stringify(colors) }),
-      });
-      await fetch(`/api/sites/${siteId}/settings`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: "theme_typography", value: JSON.stringify(typography) }),
-      });
+      await upsertSetting(siteId, "theme_colors", JSON.stringify(colors));
+      await upsertSetting(siteId, "theme_typography", JSON.stringify(typography));
     } catch (e) {
       console.error("Failed to save styles", e);
     }
@@ -1874,7 +1864,7 @@ function StylesPanel({ siteSlug }: { siteSlug: string }) {
 
 type TourGroup = { number: string; title: string; titleEn: string; sub: string; subEn: string; tag: string; tagEn: string };
 
-function TourPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: string) => void }) {
+function TourPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: string) => void }) {
   const [tours, setTours] = useState<TourGroup[]>([]);
   const [headerText, setHeaderText] = useState("每梯次七十五分鐘\n三梯次，每梯次二十人");
   const [headerEn, setHeaderEn] = useState("");
@@ -1884,9 +1874,7 @@ function TourPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: string
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch(`/api/sites/${siteId}/settings`);
-        if (!res.ok) return;
-        const data = await res.json();
+        const data = await loadSettings(siteId);
         if (data.tour_groups) {
           try {
             const parsed = JSON.parse(data.tour_groups);
@@ -1904,21 +1892,9 @@ function TourPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: string
   const handleSave = async () => {
     setSaving(true);
     try {
-      await fetch(`/api/sites/${siteId}/settings`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: "tour_groups", value: JSON.stringify(tours) }),
-      });
-      await fetch(`/api/sites/${siteId}/settings`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: "tour_header", value: headerText }),
-      });
-      await fetch(`/api/sites/${siteId}/settings`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: "tour_header_en", value: headerEn }),
-      });
+      await upsertSetting(siteId, "tour_groups", JSON.stringify(tours));
+      await upsertSetting(siteId, "tour_header", headerText);
+      await upsertSetting(siteId, "tour_header_en", headerEn);
       onToast?.("儲存成功");
     } catch (e) {
       console.error("Failed to save tours", e);
@@ -2033,7 +2009,7 @@ function TourPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: string
   );
 }
 
-function SettingsPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: string) => void }) {
+function SettingsPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: string) => void }) {
   const [form, setForm] = useState({ name: "" });
   const [siteLang, setSiteLang] = useState("both");
   const [saving, setSaving] = useState(false);
@@ -2047,18 +2023,12 @@ function SettingsPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: st
   useEffect(() => {
     async function load() {
       try {
-        const [siteRes, settingsRes] = await Promise.all([
-          fetch(`/api/sites/${siteId}`),
-          fetch(`/api/sites/${siteId}/settings`),
+        const [siteData, settings] = await Promise.all([
+          pb.collection("sites").getOne(siteId),
+          loadSettings(siteId),
         ]);
-        if (siteRes.ok) {
-          const data = await siteRes.json();
-          setForm({ name: data.name || "" });
-        }
-        if (settingsRes.ok) {
-          const settings = await settingsRes.json();
-          if (settings.site_language) setSiteLang(settings.site_language);
-        }
+        setForm({ name: siteData.name || "" });
+        if (settings.site_language) setSiteLang(settings.site_language);
       } catch { /* ignore */ }
       setLoaded(true);
     }
@@ -2068,16 +2038,8 @@ function SettingsPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: st
   const handleSave = async () => {
     setSaving(true);
     try {
-      await fetch(`/api/sites/${siteId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      await fetch(`/api/sites/${siteId}/settings`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: "site_language", value: siteLang }),
-      });
+      await pb.collection("sites").update(siteId, form);
+      await upsertSetting(siteId, "site_language", siteLang);
       onToast?.("儲存成功");
     } catch (e) {
       console.error("Failed to save settings", e);
@@ -2092,15 +2054,11 @@ function SettingsPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: st
     const results: {label: string; passed: boolean; detail?: string}[] = [];
 
     try {
-      const [settingsRes, speakersRes, programmeRes] = await Promise.all([
-        fetch(`/api/sites/${siteId}/settings`),
-        fetch(`/api/speakers?siteId=${siteId}`),
-        fetch(`/api/programme?siteId=${siteId}`),
+      const [settings, speakers, days] = await Promise.all([
+        loadSettings(siteId),
+        pb.collection("speakers").getFullList({ filter: `site="${siteId}"` }),
+        loadProgrammeData(siteId),
       ]);
-
-      const settings = await settingsRes.json();
-      const speakers = await speakersRes.json();
-      const days = await programmeRes.json();
       const lang = settings.site_language || "both";
 
       // Check description
@@ -2194,11 +2152,7 @@ function SettingsPanel({ siteId, onToast }: { siteId: number; onToast?: (msg: st
   const handlePublish = async () => {
     setDeployStatus("publishing");
     try {
-      await fetch(`/api/sites/${siteId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, status: "published" }),
-      });
+      await pb.collection("sites").update(siteId, { ...form, status: "published" });
       setDeployStatus("success");
     } catch {
       setDeployStatus("failed");
@@ -2345,10 +2299,10 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
 
 export default function SiteDashboard() {
   const params = useParams();
-  const { data: session } = useSession();
+  const { user } = useAuth();
   const siteSlug = params.site as string;
   const [activeTab, setActiveTab] = useState<Tab>("description");
-  const [siteId, setSiteId] = useState<number | null>(null);
+  const [siteId, setSiteId] = useState<string | null>(null);
   const [siteName, setSiteName] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [sectionVisibility, setSectionVisibility] = useState<Record<SectionKey, boolean>>({
@@ -2363,28 +2317,22 @@ export default function SiteDashboard() {
   useEffect(() => {
     async function resolve() {
       try {
-        const res = await fetch("/api/sites");
-        if (!res.ok) return;
-        const sites = await res.json();
-        const site = sites.find((s: any) => s.slug === siteSlug);
+        const site = await pb.collection("sites").getFirstListItem(`slug="${siteSlug}"`);
         if (site) {
           setSiteId(site.id);
           setSiteName(site.name || "");
           // Load saved section visibility
           try {
-            const settingsRes = await fetch(`/api/sites/${site.id}/settings`);
-            if (settingsRes.ok) {
-              const data = await settingsRes.json();
-              const vis: Record<string, boolean> = {};
-              for (const [k, v] of Object.entries(data)) {
-                if (k.startsWith("section_") && k.endsWith("_visible")) {
-                  const section = k.replace("section_", "").replace("_visible", "");
-                  vis[section] = v === "true";
-                }
+            const data = await loadSettings(site.id);
+            const vis: Record<string, boolean> = {};
+            for (const [k, v] of Object.entries(data)) {
+              if (k.startsWith("section_") && k.endsWith("_visible")) {
+                const section = k.replace("section_", "").replace("_visible", "");
+                vis[section] = v === "true";
               }
-              if (Object.keys(vis).length > 0) {
-                setSectionVisibility(prev => ({ ...prev, ...vis }));
-              }
+            }
+            if (Object.keys(vis).length > 0) {
+              setSectionVisibility(prev => ({ ...prev, ...vis }));
             }
           } catch { /* ignore */ }
         }
@@ -2398,11 +2346,7 @@ export default function SiteDashboard() {
     setSectionVisibility((prev) => ({ ...prev, [key]: newValue }));
     if (siteId) {
       try {
-        await fetch(`/api/sites/${siteId}/settings`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ key: `section_${key}_visible`, value: newValue ? "true" : "false" }),
-        });
+        await upsertSetting(siteId, `section_${key}_visible`, newValue ? "true" : "false");
         const label = sectionLabels[key];
         setToast(`${label} ${newValue ? "已顯示" : "已隱藏"}`);
       } catch (e) { console.error("Failed to save section visibility", e); }
@@ -2467,16 +2411,16 @@ export default function SiteDashboard() {
 
         <div className="px-5 py-4 border-t border-white/10">
           <div className="flex items-center gap-3">
-            {session?.user?.image ? (
-              <img src={session.user.image} alt="" className="w-8 h-8 rounded-full shrink-0" />
+            {user?.avatar ? (
+              <img src={user.avatar} alt="" className="w-8 h-8 rounded-full shrink-0" />
             ) : (
               <div className="w-8 h-8 rounded-full bg-gold/80 flex items-center justify-center text-white text-sm font-medium shrink-0">
-                {session?.user?.name?.charAt(0) || session?.user?.email?.charAt(0) || "?"}
+                {user?.name?.charAt(0) || user?.email?.charAt(0) || "?"}
               </div>
             )}
             <div className="min-w-0">
-              <div className="text-white text-sm truncate">{session?.user?.name || "使用者"}</div>
-              <div className="text-white/40 text-xs truncate">{session?.user?.email || ""}</div>
+              <div className="text-white text-sm truncate">{user?.name || "使用者"}</div>
+              <div className="text-white/40 text-xs truncate">{user?.email || ""}</div>
             </div>
           </div>
         </div>
