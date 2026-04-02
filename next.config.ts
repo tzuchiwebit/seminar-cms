@@ -1,16 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  output: "export",
   images: {
-    remotePatterns: [
-      {
-        protocol: "http",
-        hostname: "localhost",
-      },
-    ],
+    unoptimized: true,
   },
-  serverExternalPackages: ["sharp"],
 };
 
 export default nextConfig;
