@@ -85,7 +85,7 @@ export default function AllWebsitesPage() {
 }
 
 function DashboardContent() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("sites");
   const [users, setUsers] = useState<UserItem[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
@@ -269,6 +269,7 @@ function DashboardContent() {
           </ul>
         </nav>
 
+        {!authLoading && (
         <div className="px-5 py-4 border-t border-white/10">
           <div className="flex items-center gap-3">
             {user?.avatar ? (
@@ -291,6 +292,7 @@ function DashboardContent() {
             </button>
           </div>
         </div>
+        )}
       </aside>
 
       {/* Main Content */}

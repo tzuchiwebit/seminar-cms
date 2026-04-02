@@ -2299,7 +2299,7 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
 
 export default function SiteDashboard() {
   const searchParams = useSearchParams();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const siteSlug = searchParams.get("site") || "";
   const [activeTab, setActiveTab] = useState<Tab>("description");
   const [siteId, setSiteId] = useState<string | null>(null);
@@ -2409,6 +2409,7 @@ export default function SiteDashboard() {
           </ul>
         </nav>
 
+        {!authLoading && (
         <div className="px-5 py-4 border-t border-white/10">
           <div className="flex items-center gap-3">
             {user?.avatar ? (
@@ -2424,6 +2425,7 @@ export default function SiteDashboard() {
             </div>
           </div>
         </div>
+        )}
       </aside>
 
       {/* Main Content */}
