@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import pb from "@/lib/pb";
 import Link from "next/link";
+import SiteDashboard from "./SiteDashboardClient";
 import {
   Globe,
   Search,
@@ -63,7 +65,26 @@ function timeAgo(date: string) {
   return `${weeks} 週前`;
 }
 
+function AdminRouter() {
+  const searchParams = useSearchParams();
+  const siteSlug = searchParams.get("site");
+
+  if (siteSlug) {
+    return <SiteDashboard />;
+  }
+
+  return <DashboardContent />;
+}
+
 export default function AllWebsitesPage() {
+  return (
+    <Suspense>
+      <AdminRouter />
+    </Suspense>
+  );
+}
+
+function DashboardContent() {
   const { user, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("sites");
   const [users, setUsers] = useState<UserItem[]>([]);
@@ -413,7 +434,7 @@ export default function AllWebsitesPage() {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <Link
-                          href={`/admin/${site.slug}`}
+                          href={`/admin?site=${site.slug}`}
                           className="px-3 py-1.5 text-sm text-dark border border-border rounded-md hover:bg-cream transition-colors"
                         >
                           編輯
