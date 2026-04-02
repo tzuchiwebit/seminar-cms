@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useSession, signOut } from "next-auth/react";
+import { useAuth } from "@/hooks/useAuth";
+import pb from "@/lib/pb";
 import Link from "next/link";
 import {
   Globe,
@@ -18,13 +19,13 @@ import {
 } from "lucide-react";
 
 type Site = {
-  id: number;
+  id: string;
   name: string;
   slug: string;
   domain: string | null;
   status: string;
-  createdAt: string;
-  updatedAt: string;
+  created: string;
+  updated: string;
   _count: {
     speakers: number;
     days: number;
@@ -34,11 +35,10 @@ type Site = {
 
 type UserItem = {
   id: string;
-  name: string | null;
-  email: string | null;
-  image: string | null;
-  role: string;
-  emailVerified: string | null;
+  name: string;
+  email: string;
+  avatar: string;
+  verified: boolean;
 };
 
 type Tab = "sites" | "users";
@@ -64,7 +64,7 @@ function timeAgo(date: string) {
 }
 
 export default function AllWebsitesPage() {
-  const { data: session } = useSession();
+  const { user, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("sites");
   const [users, setUsers] = useState<UserItem[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
@@ -85,29 +85,38 @@ export default function AllWebsitesPage() {
 
   const fallbackSites: Site[] = [
     {
-      id: 0,
+      id: "0",
       name: "全球共善學思會",
       slug: "symposium",
       domain: null,
       status: "published",
-      createdAt: "2026-01-15T00:00:00.000Z",
-      updatedAt: new Date().toISOString(),
+      created: "2026-01-15T00:00:00.000Z",
+      updated: new Date().toISOString(),
       _count: { speakers: 8, days: 3, registrations: 247 },
     },
   ];
 
   const fetchSites = useCallback(async () => {
     try {
-      const res = await fetch("/api/sites");
-      if (res.ok) {
-        const text = await res.text();
-        if (text) {
-          const data = JSON.parse(text);
-          setSites(data.length > 0 ? data : fallbackSites);
-          return;
-        }
-      }
-      setSites(fallbackSites);
+      const records = await pb.collection("sites").getFullList({ sort: "-created" });
+      const sitesWithCounts = await Promise.all(
+        records.map(async (site) => {
+          const [speakers, days, registrations] = await Promise.all([
+            pb.collection("speakers").getList(1, 1, { filter: `site="${site.id}"` }),
+            pb.collection("days").getList(1, 1, { filter: `site="${site.id}"` }),
+            pb.collection("registrations").getList(1, 1, { filter: `site="${site.id}"` }),
+          ]);
+          return {
+            ...site,
+            _count: {
+              speakers: speakers.totalItems,
+              days: days.totalItems,
+              registrations: registrations.totalItems,
+            },
+          };
+        })
+      );
+      setSites(sitesWithCounts.length > 0 ? sitesWithCounts as any : fallbackSites);
     } catch {
       setSites(fallbackSites);
     } finally {
@@ -117,41 +126,32 @@ export default function AllWebsitesPage() {
 
   useEffect(() => {
     fetchSites();
-    fetch("/api/users").then(r => r.ok ? r.json() : []).then(setUsers).catch(() => {});
+    pb.collection("users").getFullList().then((records) => setUsers(records as any)).catch(() => {});
   }, [fetchSites]);
 
   const handleCreate = async () => {
     if (!formName || !formSlug) return;
     setSubmitting(true);
     try {
-      const res = await fetch("/api/sites", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: formName,
-          slug: formSlug,
-          domain: null,
-          status: formStatus,
-        }),
+      const site = await pb.collection("sites").create({
+        name: formName,
+        slug: formSlug,
+        status: formStatus,
       });
-      if (res.ok) {
-        // Save start/end date as site settings if provided
-        const site = await res.json();
-        const settingsPairs = [];
-        if (formStartDate) settingsPairs.push({ key: "eventStartDate", value: formStartDate });
-        if (formEndDate) settingsPairs.push({ key: "eventEndDate", value: formEndDate });
-        settingsPairs.push({ key: "site_language", value: formLang });
-        for (const s of settingsPairs) {
-          await fetch(`/api/sites/${site.id}/settings`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(s),
-          });
-        }
-        setShowCreateModal(false);
-        resetForm();
-        fetchSites();
+      const settingsPairs = [];
+      if (formStartDate) settingsPairs.push({ key: "eventStartDate", value: formStartDate });
+      if (formEndDate) settingsPairs.push({ key: "eventEndDate", value: formEndDate });
+      settingsPairs.push({ key: "site_language", value: formLang });
+      for (const s of settingsPairs) {
+        await pb.collection("site_settings").create({
+          site: site.id,
+          key: s.key,
+          value: s.value,
+        });
       }
+      setShowCreateModal(false);
+      resetForm();
+      fetchSites();
     } catch (err) {
       console.error("Failed to create site:", err);
     } finally {
@@ -161,11 +161,9 @@ export default function AllWebsitesPage() {
 
   const handleDelete = async (site: Site) => {
     try {
-      const res = await fetch(`/api/sites/${site.id}`, { method: "DELETE" });
-      if (res.ok) {
-        setShowDeleteModal(null);
-        fetchSites();
-      }
+      await pb.collection("sites").delete(site.id);
+      setShowDeleteModal(null);
+      fetchSites();
     } catch (err) {
       console.error("Failed to delete site:", err);
     }
@@ -252,19 +250,19 @@ export default function AllWebsitesPage() {
 
         <div className="px-5 py-4 border-t border-white/10">
           <div className="flex items-center gap-3">
-            {session?.user?.image ? (
-              <img src={session.user.image} alt="" className="w-8 h-8 rounded-full shrink-0" />
+            {user?.avatar ? (
+              <img src={pb.files.getURL(user, user.avatar)} alt="" className="w-8 h-8 rounded-full shrink-0" />
             ) : (
               <div className="w-8 h-8 rounded-full bg-gold/80 flex items-center justify-center text-white text-sm font-medium shrink-0">
-                {session?.user?.name?.charAt(0) || "?"}
+                {user?.name?.charAt(0) || "?"}
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <div className="text-white text-sm truncate">{session?.user?.name || "使用者"}</div>
-              <div className="text-white/40 text-xs truncate">{session?.user?.email || ""}</div>
+              <div className="text-white text-sm truncate">{user?.name || "使用者"}</div>
+              <div className="text-white/40 text-xs truncate">{user?.email || ""}</div>
             </div>
             <button
-              onClick={() => signOut({ callbackUrl: "/admin/login" })}
+              onClick={() => signOut()}
               className="p-1.5 text-white/40 hover:text-white transition-colors"
               title="登出"
             >
@@ -404,7 +402,7 @@ export default function AllWebsitesPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-muted">
-                      {timeAgo(site.updatedAt)}
+                      {timeAgo(site.updated)}
                     </td>
                     <td className="px-6 py-4 text-sm text-muted">
                       {site._count.speakers}
@@ -655,8 +653,8 @@ function UsersPanel({ users }: { users: UserItem[] }) {
                 <tr key={user.id} className="hover:bg-cream/30">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      {user.image ? (
-                        <img src={user.image} alt="" className="w-9 h-9 rounded-full shrink-0" />
+                      {user.avatar ? (
+                        <img src={user.avatar} alt="" className="w-9 h-9 rounded-full shrink-0" />
                       ) : (
                         <div className="w-9 h-9 rounded-full bg-gold/80 flex items-center justify-center text-white text-sm font-medium shrink-0">
                           {user.name?.charAt(0) || user.email?.charAt(0) || "?"}
@@ -673,11 +671,11 @@ function UsersPanel({ users }: { users: UserItem[] }) {
                   </td>
                   <td className="px-6 py-4">
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gold/10 text-gold capitalize">
-                      {user.role}
+                      admin
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-muted">
-                    {user.image ? "Google" : "密碼"}
+                    {user.avatar ? "Google" : "密碼"}
                   </td>
                 </tr>
               ))
