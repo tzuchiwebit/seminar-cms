@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Noto_Serif_TC, Noto_Sans_TC } from "next/font/google";
 import { Agentation } from "agentation";
 import "./globals.css";
@@ -21,6 +21,11 @@ const notoSansTC = Noto_Sans_TC({
   variable: "--font-sans",
   display: "swap",
 });
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
 
 export const metadata: Metadata = {
   title: "Seminar CMS",

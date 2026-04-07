@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 
 export default function Navbar({ slug, lang, settings }: { slug: string; lang: "zh" | "en"; settings: Record<string, string> }) {
+  const [mobileOpen, setMobileOpen] = useState(false);
   const base = `/${slug}`;
 
   const allLinks =
@@ -30,20 +32,51 @@ export default function Navbar({ slug, lang, settings }: { slug: string; lang: "
 
   return (
     <header className="sticky top-0 z-50 bg-[#F5F1EB] border-b border-[#E5E0D8]">
-      <div className="mx-auto max-w-7xl px-6 flex items-center justify-center h-16">
-        <nav className="flex items-center gap-2">
+      <div className="mx-auto max-w-7xl px-4 md:px-6 flex items-center justify-between md:justify-center h-14 md:h-16">
+        {/* Hamburger — mobile only */}
+        <button
+          onClick={() => setMobileOpen(!mobileOpen)}
+          className="md:hidden w-8 h-8 flex flex-col items-center justify-center gap-1.5"
+          aria-label="Toggle menu"
+        >
+          <span className={`block w-5 h-0.5 bg-[#5A554B] transition-all duration-300 ${mobileOpen ? "rotate-45 translate-y-[4px]" : ""}`} />
+          <span className={`block w-5 h-0.5 bg-[#5A554B] transition-all duration-300 ${mobileOpen ? "opacity-0" : ""}`} />
+          <span className={`block w-5 h-0.5 bg-[#5A554B] transition-all duration-300 ${mobileOpen ? "-rotate-45 -translate-y-[4px]" : ""}`} />
+        </button>
+
+        {/* Desktop nav */}
+        <nav className="hidden md:flex items-center gap-1 lg:gap-2">
           {navLinks.map((link, i) => (
             <span key={link.href} className="flex items-center">
               <Link
                 href={link.href}
-                className="font-inter text-[14px] tracking-[0.08em] uppercase text-[#5A554B] hover:text-[#9B7B2F] font-medium px-5 py-2 rounded-full hover:bg-[#9B7B2F]/5 transition-all"
+                className="font-inter text-[13px] lg:text-[14px] tracking-[0.08em] uppercase text-[#5A554B] hover:text-[#9B7B2F] font-medium px-3 lg:px-5 py-2 rounded-full hover:bg-[#9B7B2F]/5 transition-all"
               >
                 {link.label}
               </Link>
               {i < navLinks.length - 1 && (
-                <span className="w-1 h-1 rounded-full bg-[#9B7B2F]/20" />
+                <span className="w-1 h-1 rounded-full bg-[#9B7B2F]/20 hidden lg:block" />
               )}
             </span>
+          ))}
+        </nav>
+
+        {/* Spacer for centering on mobile */}
+        <div className="w-8 md:hidden" />
+      </div>
+
+      {/* Mobile menu */}
+      <div className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out ${mobileOpen ? "max-h-[400px] opacity-100" : "max-h-0 opacity-0"}`}>
+        <nav className="flex flex-col px-4 pb-4 gap-0.5 border-t border-[#E5E0D8]">
+          {navLinks.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              onClick={() => setMobileOpen(false)}
+              className="font-inter text-[14px] tracking-[0.08em] uppercase text-[#5A554B] hover:text-[#9B7B2F] font-medium px-4 py-3 rounded-lg hover:bg-[#9B7B2F]/5 transition-all"
+            >
+              {link.label}
+            </Link>
           ))}
         </nav>
       </div>

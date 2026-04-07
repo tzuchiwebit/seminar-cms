@@ -329,7 +329,7 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
           </div>
 
           {/* Highlights — 4 across (staggered fade-up) */}
-          <div ref={highlightsSection.ref} className="grid grid-cols-2 md:grid-cols-4 gap-5 mt-10">
+          <div ref={highlightsSection.ref} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5 mt-8 md:mt-10">
             {descriptionData.highlights.map((item: any, idx: number) => {
               const Icon = typeof item.icon === "string" ? iconMap[item.icon] || BookOpen : item.icon;
               return (
@@ -367,16 +367,16 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
             }}
           />
         </div>
-        <div className="flex flex-col lg:flex-row w-full py-24 px-20 gap-12 lg:gap-20">
-          <div className="flex flex-col w-full lg:w-[400px] shrink-0 gap-4">
-            <p className="font-inter text-gold text-[16px] font-semibold tracking-[0.2em] uppercase leading-4">
+        <div className="flex flex-col lg:flex-row w-full py-10 md:py-16 lg:py-24 px-6 md:px-12 lg:px-20 gap-6 md:gap-10 lg:gap-20">
+          <div className="flex flex-col w-full lg:w-[400px] shrink-0 gap-3 md:gap-4">
+            <p className="font-inter text-gold text-[13px] md:text-[16px] font-semibold tracking-[0.2em] uppercase leading-4">
               {lang === "en" ? "EXHIBITION TOUR" : "展覽參觀"}
             </p>
-            <h2 className="font-serif text-dark text-[72px] md:text-[88px] lg:text-[100px] font-black leading-[1.1] tracking-[-0.02em]">
+            <h2 className="font-serif text-dark text-[40px] md:text-[60px] lg:text-[100px] font-black leading-[1.1] tracking-[-0.02em]">
               {lang === "en" ? <>Tour<br />Groups</> : <>導覽<br />梯次</>}
             </h2>
             <div className="w-12 h-0.5 bg-gold" />
-            <p className="font-sans text-muted text-[16px] leading-[26px] whitespace-pre-line">
+            <p className="font-sans text-muted text-[14px] md:text-[16px] leading-[24px] md:leading-[26px] whitespace-pre-line">
               {lang === "en"
                 ? (settings.tour_header_en || settings.tour_header || "75 minutes per group\n3 groups, 20 people each")
                 : (settings.tour_header || "每梯次七十五分鐘\n三梯次，每梯次二十人")}
@@ -398,14 +398,18 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
               }
               return tours;
             })().map((tour: any, i: number) => (
-              <div key={tour.number} className={`flex items-center py-8 gap-6 md:gap-8 ${i < 2 ? "border-b border-border" : ""}`}>
-                <span className="font-inter text-[#D4B85A] text-[48px] md:text-[64px] font-extralight leading-none w-[60px] md:w-[100px] shrink-0">{tour.number}</span>
-                <div className="flex flex-col grow gap-1.5">
-                  <span className="font-serif text-dark text-[20px] md:text-[24px] font-bold leading-[30px]">{lang === "en" ? (tour.titleEn || tour.title) : tour.title}</span>
-                  <span className="font-sans text-muted text-[16px] leading-[18px]">{lang === "en" ? (tour.subEn || tour.sub) : tour.sub}</span>
+              <div key={tour.number} className={`flex items-start md:items-center py-5 md:py-8 gap-3 md:gap-6 ${i < 2 ? "border-b border-border" : ""}`}>
+                <span className="font-inter text-[#D4B85A] text-[32px] md:text-[48px] lg:text-[64px] font-extralight leading-none w-[44px] md:w-[70px] lg:w-[100px] shrink-0">{tour.number}</span>
+                <div className="flex flex-col grow gap-1 md:gap-1.5 min-w-0">
+                  <span className="font-serif text-dark text-[15px] md:text-[20px] lg:text-[24px] font-bold leading-snug">{lang === "en" ? (tour.titleEn || tour.title) : tour.title}</span>
+                  <span className="font-sans text-muted text-[12px] md:text-[16px] leading-[18px]">{lang === "en" ? (tour.subEn || tour.sub) : tour.sub}</span>
+                  {/* Tag inline on mobile */}
+                  <span className="inline-flex self-start md:hidden mt-1 rounded-[20px] py-1 px-2.5 bg-gold/10 border border-gold/25">
+                    <span className="font-sans text-gold text-[11px] tracking-[0.08em] font-medium leading-4 whitespace-nowrap">{lang === "en" ? (tour.tagEn || tour.tag) : tour.tag}</span>
+                  </span>
                 </div>
-                <span className="shrink-0 rounded-[20px] py-2 px-5 bg-gold/10 border border-gold/25">
-                  <span className="font-sans text-gold text-[16px] tracking-[0.08em] font-medium leading-4">{lang === "en" ? (tour.tagEn || tour.tag) : tour.tag}</span>
+                <span className="hidden md:inline-flex shrink-0 rounded-[20px] py-2 px-4 lg:px-5 bg-gold/10 border border-gold/25">
+                  <span className="font-sans text-gold text-[14px] lg:text-[16px] tracking-[0.08em] font-medium leading-4 whitespace-nowrap">{lang === "en" ? (tour.tagEn || tour.tag) : tour.tag}</span>
                 </span>
               </div>
             ))}
@@ -423,14 +427,14 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
       </section>}
 
       {/* ═══ 議程 ═══ */}
-      {settings.section_programme_visible !== "false" && <section className="bg-white py-20 px-20" id="programme">
+      {settings.section_programme_visible !== "false" && <section className="bg-white py-12 md:py-20 px-4 md:px-12 lg:px-20" id="programme">
         <div ref={programmeSection.ref}>
           <div className={`flex flex-col md:flex-row md:items-end md:justify-between mb-12 transition-all duration-700 ${programmeSection.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
             <div>
               <p className="font-inter text-gold text-[15px] tracking-[0.2em] uppercase mb-3">
                 {lang === "en" ? "PROGRAMME" : "議程"}
               </p>
-              <h2 className="font-serif text-dark text-4xl md:text-5xl lg:text-6xl font-bold">
+              <h2 className="font-serif text-dark text-3xl md:text-5xl lg:text-6xl font-bold">
                 {lang === "en" ? `${days.length}-Day Programme` : `${["零", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十"][days.length] || days.length}日議程`}
               </h2>
             </div>
@@ -438,12 +442,12 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
           </div>
 
           {/* Day Theme Bar */}
-          <div id="day-theme-bar" className="grid grid-cols-[100px_1px_1fr] md:grid-cols-[180px_1px_1fr] gap-3 md:gap-6 py-6 border-y border-border mb-0 items-center">
-            <div className="text-right flex items-baseline justify-end gap-2">
+          <div id="day-theme-bar" className="grid grid-cols-[80px_1px_1fr] md:grid-cols-[140px_1px_1fr] lg:grid-cols-[180px_1px_1fr] gap-2 md:gap-4 lg:gap-6 py-4 md:py-6 border-y border-border mb-0 items-center">
+            <div className="text-right flex flex-col items-end">
               <span className="font-inter text-gold text-2xl md:text-3xl font-bold leading-none">
                 {currentDay?.date}
               </span>
-              <span className="font-sans text-muted text-[13px]">{currentDay?.weekday}</span>
+              <span className="font-sans text-muted text-[11px] md:text-[13px] mt-1">{currentDay?.weekday}</span>
             </div>
             <div className="w-px h-8 bg-border" />
             <p className="font-serif text-dark text-2xl md:text-3xl font-bold">{currentDay?.theme}</p>
@@ -454,7 +458,7 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
             {currentSessions.map((session, i) => (
               <div
                 key={i}
-                className={`grid grid-cols-[100px_1px_1fr] md:grid-cols-[180px_1px_1fr] gap-3 md:gap-6 py-4 md:py-5 ${
+                className={`grid grid-cols-[80px_1px_1fr] md:grid-cols-[140px_1px_1fr] lg:grid-cols-[180px_1px_1fr] gap-2 md:gap-4 lg:gap-6 py-3 md:py-5 ${
                   session.highlight ? "bg-cream/60 -mx-4 px-4 md:-mx-6 md:px-6" : ""
                 }`}
               >
@@ -597,7 +601,7 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
             </p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-5 items-start">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 md:gap-5 items-start">
             {speakerList.map((speaker, idx) => (
               <button
                 key={speaker.name}
@@ -683,7 +687,7 @@ function VenueSection({ venues, lang }: { venues: any[]; lang: "zh" | "en" }) {
         <p className="font-inter text-gold text-[16px] font-semibold tracking-[0.25em] uppercase leading-4">
           {lang === "en" ? "VENUE" : "場地介紹"}
         </p>
-        <h2 className="font-serif text-dark text-[40px] md:text-[48px] font-bold leading-[58px]">
+        <h2 className="font-serif text-dark text-[32px] md:text-[40px] lg:text-[48px] font-bold leading-tight">
           {lang === "en" ? "Event Venues" : "活動地點"}
         </h2>
         <div className="flex items-center gap-2.5 mt-1">
@@ -741,7 +745,7 @@ function VenueLocation({ venue, index, lang }: { venue: any; index: number; lang
   ];
 
   const imagePanel = (
-    <div className="relative w-full md:w-1/2 h-[240px] md:h-full overflow-hidden">
+    <div className="relative w-full md:w-1/2 h-[200px] md:h-full overflow-hidden">
       <div className={`absolute inset-0 bg-cover bg-center transition-transform duration-[1.2s] ${loc.isVisible ? "scale-100" : "scale-110"}`} style={{ backgroundImage: `url('${bgImage}')` }} />
       <div className="absolute inset-0" style={{ backgroundImage: overlay }} />
       {decorShapes[index % decorShapes.length]}
@@ -750,9 +754,9 @@ function VenueLocation({ venue, index, lang }: { venue: any; index: number; lang
 
   const slideDir = isImageLeft ? "translate-x-8" : "-translate-x-8";
   const textPanel = (
-    <div className={`w-full md:w-1/2 flex flex-col justify-center px-8 md:px-16 py-10 md:py-0 gap-3 bg-[#FAF8F5] ${!isImageLeft ? "order-2 md:order-1" : ""} transition-all duration-700 delay-200 ${loc.isVisible ? "opacity-100 translate-x-0" : `opacity-0 ${slideDir}`}`}>
-      <span className="font-inter text-gold/20 text-[72px] font-extralight leading-none">{number}</span>
-      <h3 className="font-serif text-dark text-[28px] md:text-[32px] font-bold leading-[44px]">
+    <div className={`w-full md:w-1/2 flex flex-col justify-center px-6 md:px-10 lg:px-16 py-8 md:py-0 gap-2 md:gap-3 bg-[#FAF8F5] ${!isImageLeft ? "order-2 md:order-1" : ""} transition-all duration-700 delay-200 ${loc.isVisible ? "opacity-100 translate-x-0" : `opacity-0 ${slideDir}`}`}>
+      <span className="font-inter text-gold/20 text-[48px] md:text-[72px] font-extralight leading-none">{number}</span>
+      <h3 className="font-serif text-dark text-[22px] md:text-[28px] lg:text-[32px] font-bold leading-tight">
         {title}
       </h3>
       {(venue.description || venue.descriptionEn) && (
@@ -779,12 +783,12 @@ function VenueLocation({ venue, index, lang }: { venue: any; index: number; lang
   return (
     <div
       ref={loc.ref}
-      className={`w-full h-auto md:h-[360px] flex flex-col md:flex-row transition-all duration-700 ${loc.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-12"}`}
+      className={`w-full h-auto md:h-[320px] lg:h-[360px] flex flex-col md:flex-row transition-all duration-700 ${loc.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-12"}`}
     >
       {isImageLeft ? (
         <>{imagePanel}{textPanel}</>
       ) : (
-        <>{textPanel}<div className="order-1 md:order-2 relative w-full md:w-1/2 h-[240px] md:h-full overflow-hidden">
+        <>{textPanel}<div className="order-1 md:order-2 relative w-full md:w-1/2 h-[200px] md:h-full overflow-hidden">
           <div className={`absolute inset-0 bg-cover bg-center transition-transform duration-[1.2s] ${loc.isVisible ? "scale-100" : "scale-110"}`} style={{ backgroundImage: `url('${bgImage}')` }} />
           <div className="absolute inset-0" style={{ backgroundImage: overlay }} />
         </div></>
@@ -800,12 +804,12 @@ function DayTabsOriginal({ dayTabs, activeDay, setActiveDay }: {
   setActiveDay: (i: number) => void;
 }) {
   return (
-    <div className="flex gap-2 mt-6 md:mt-0" id="day-tabs-original">
+    <div className="flex flex-wrap gap-1.5 md:gap-2 mt-4 md:mt-0" id="day-tabs-original">
       {dayTabs.map((tab, i) => (
         <button
           key={i}
           onClick={() => setActiveDay(i)}
-          className={`font-inter text-[16px] px-5 py-2.5 rounded-full border transition-colors ${
+          className={`font-inter text-[13px] md:text-[16px] px-3 md:px-5 py-2 md:py-2.5 rounded-full border transition-colors whitespace-nowrap ${
             activeDay === i
               ? "bg-dark text-cream border-dark"
               : "bg-transparent text-muted border-border hover:border-dark hover:text-dark"
@@ -844,7 +848,7 @@ function StickyDayTabs({ dayTabs, activeDay, setActiveDay, currentDay }: {
 
   return (
     <div className={`fixed top-16 left-0 right-0 z-40 bg-white/95 backdrop-blur-sm border-b border-border transition-all duration-300 ${show ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2 pointer-events-none"}`}>
-      <div className="flex justify-center gap-1.5 py-2">
+      <div className="flex justify-start md:justify-center gap-1.5 py-2 px-4 md:px-6 overflow-x-auto scrollbar-hide">
         {dayTabs.map((tab, i) => (
           <button
             key={i}
@@ -856,14 +860,14 @@ function StickyDayTabs({ dayTabs, activeDay, setActiveDay, currentDay }: {
                 window.scrollTo({ top: y, behavior: "smooth" });
               }
             }}
-            className={`font-inter text-[12px] px-3.5 py-1.5 rounded-full border transition-colors flex flex-col items-center gap-0.5 ${
+            className={`font-inter text-[11px] md:text-[12px] px-2.5 md:px-3.5 py-1.5 rounded-full border transition-colors flex flex-col items-center gap-0.5 shrink-0 ${
               activeDay === i
                 ? "bg-dark text-cream border-dark"
                 : "bg-transparent text-muted border-border hover:border-dark hover:text-dark"
             }`}
           >
-            <span className="font-medium">{tab.label}</span>
-            <span className={`text-[10px] font-bold ${activeDay === i ? "text-gold" : "text-gold/60"}`}>{tab.theme}</span>
+            <span className="font-medium whitespace-nowrap">{tab.label}</span>
+            <span className={`text-[9px] md:text-[10px] font-bold whitespace-nowrap ${activeDay === i ? "text-gold" : "text-gold/60"}`}>{tab.theme}</span>
           </button>
         ))}
       </div>
