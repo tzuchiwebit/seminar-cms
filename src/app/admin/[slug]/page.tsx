@@ -1,11 +1,18 @@
-"use client";
+import PocketBase from "pocketbase";
+import SiteAdminClient from "./SiteAdminClient";
 
-import { useParams } from "next/navigation";
-import SiteDashboard from "../SiteDashboardClient";
+export async function generateStaticParams() {
+  try {
+    const pb = new PocketBase(
+      process.env.NEXT_PUBLIC_POCKETBASE_URL || "https://academic-events.pockethost.io/"
+    );
+    const sites = await pb.collection("sites").getFullList({ fields: "slug" });
+    return sites.map((site) => ({ slug: site.slug }));
+  } catch {
+    return [{ slug: "symposium" }];
+  }
+}
 
 export default function SiteAdminPage() {
-  const params = useParams();
-  const slug = params.slug as string;
-
-  return <SiteDashboard slugOverride={slug} />;
+  return <SiteAdminClient />;
 }
