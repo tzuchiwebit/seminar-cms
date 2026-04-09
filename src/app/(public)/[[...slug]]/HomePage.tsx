@@ -277,18 +277,45 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
   const descSection = useScrollReveal<HTMLDivElement>(0.1);
   const highlightsSection = useScrollReveal<HTMLDivElement>(0.2);
   const programmeSection = useScrollReveal<HTMLDivElement>(0.1);
-  const speakersSection = useScrollReveal<HTMLDivElement>(0.1);
+  const speakersSection = useScrollReveal<HTMLDivElement>(0.01);
   const tourSection = useScrollReveal<HTMLDivElement>(0.1);
+
+  // Set page title and favicon dynamically
+  useEffect(() => {
+    const title = lang === "en"
+      ? (settings.og_title_en || settings.site_name_en || settings.og_title || siteName)
+      : (settings.og_title || siteName);
+    if (title) document.title = title;
+
+    if (settings.favicon) {
+      // Remove existing favicons
+      document.querySelectorAll("link[rel='icon'], link[rel='shortcut icon']").forEach((el) => el.remove());
+      // Add new favicon
+      const link = document.createElement("link");
+      link.rel = "icon";
+      link.href = settings.favicon;
+      document.head.appendChild(link);
+    }
+  }, [settings.favicon, settings.og_title, settings.og_title_en, siteName]);
 
   return (
     <>
       {/* ═══ Hero Banner ═══ */}
       <section id="about" className="w-full">
+        {/* Desktop banner */}
         <img
           src={settings.banner_image || "/img/about-banner.jpg"}
           alt={settings.og_title_en || settings.og_title || siteName}
-          className="w-full h-auto block"
+          className={`w-full h-auto ${settings.banner_image_mobile ? "hidden md:block" : "block"}`}
         />
+        {/* Mobile banner */}
+        {settings.banner_image_mobile && (
+          <img
+            src={settings.banner_image_mobile}
+            alt={settings.og_title_en || settings.og_title || siteName}
+            className="w-full h-auto block md:hidden"
+          />
+        )}
       </section>
 
       {/* ═══ Navbar (after banner, sticky) ═══ */}
@@ -585,7 +612,7 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
       {settings.section_venues_visible !== "false" && venues.length > 0 && <VenueSection venues={venues} lang={lang} />}
 
       {/* ═══ 講者 ═══ */}
-      {settings.section_speakers_visible !== "false" && <section className="bg-cream px-6 md:px-20 min-h-[calc(100vh-64px)] flex items-center py-20" id="speakers">
+      {settings.section_speakers_visible !== "false" && <section className="bg-cream px-4 md:px-20 py-12 md:py-20" id="speakers">
         <div ref={speakersSection.ref} className="mx-auto w-full max-w-5xl">
           <div className={`text-center mb-14 transition-all duration-700 ${speakersSection.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
             <p className="font-inter text-gold text-[15px] tracking-[0.2em] uppercase mb-3">
@@ -605,9 +632,9 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
             {speakerList.map((speaker, idx) => (
               <button
                 key={speaker.name}
-                onClick={() => setSelectedSpeaker(speaker)}
+                onClick={() => settings.speakers_see_more !== "false" && setSelectedSpeaker(speaker)}
                 style={{ transitionDelay: speakersSection.isVisible ? `${300 + idx * 80}ms` : "0ms" }}
-                className={`group bg-white rounded-xl border border-border overflow-hidden text-left hover:shadow-lg cursor-pointer transition-all duration-500 flex flex-col ${speakersSection.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
+                className={`group bg-white rounded-xl border border-border overflow-hidden text-left transition-all duration-500 flex flex-col ${settings.speakers_see_more !== "false" ? "hover:shadow-lg cursor-pointer" : "cursor-default"} ${speakersSection.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
               >
                 <div className="w-full aspect-[4/3] bg-cream-dark overflow-hidden">
                   {speaker.photo ? (
@@ -631,9 +658,11 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
                   <p className="font-inter text-muted-light text-[11px] mt-0.5 line-clamp-1">
                     {speaker.title || "\u00A0"}
                   </p>
-                  <span className="inline-flex items-center gap-1 mt-2 font-inter text-[11px] text-gold font-medium group-hover:text-gold-light transition-colors">
-                    More <span className="text-[9px]">→</span>
-                  </span>
+                  {settings.speakers_see_more !== "false" && (
+                    <span className="inline-flex items-center gap-1 mt-2 font-inter text-[11px] text-gold font-medium group-hover:text-gold-light transition-colors">
+                      {lang === "en" ? "More" : "查看更多"} <span className="text-[9px]">→</span>
+                    </span>
+                  )}
                 </div>
               </button>
             ))}
@@ -764,16 +793,16 @@ function VenueLocation({ venue, index, lang }: { venue: any; index: number; lang
           {lang === "en" ? (venue.descriptionEn || venue.description) : venue.description}
         </p>
       )}
-      {venue.address && (
+      {(venue.address || venue.mapUrl) && (
         <a
-          href={venue.address}
+          href={venue.mapUrl || `https://maps.google.com/?q=${encodeURIComponent(venue.address)}`}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center mt-1 gap-2 group"
         >
           <MapPin className="w-4 h-4 text-gold" />
           <span className="font-sans text-gold text-[13px] leading-4 group-hover:underline">
-            {lang === "en" ? (venue.name || venue.nameZh) : (venue.nameZh || venue.name)}
+            {venue.address || (lang === "en" ? (venue.name || venue.nameZh) : (venue.nameZh || venue.name))}
           </span>
         </a>
       )}

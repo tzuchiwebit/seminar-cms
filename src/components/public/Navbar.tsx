@@ -36,12 +36,18 @@ export default function Navbar({ slug, lang, settings }: { slug: string; lang: "
         {/* Hamburger — mobile only */}
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
-          className="md:hidden w-8 h-8 flex flex-col items-center justify-center gap-1.5"
+          className="md:hidden w-8 h-8 relative flex items-center justify-center"
           aria-label="Toggle menu"
         >
-          <span className={`block w-5 h-0.5 bg-[#5A554B] transition-all duration-300 ${mobileOpen ? "rotate-45 translate-y-[4px]" : ""}`} />
-          <span className={`block w-5 h-0.5 bg-[#5A554B] transition-all duration-300 ${mobileOpen ? "opacity-0" : ""}`} />
-          <span className={`block w-5 h-0.5 bg-[#5A554B] transition-all duration-300 ${mobileOpen ? "-rotate-45 -translate-y-[4px]" : ""}`} />
+          {/* Hamburger lines → up arrow */}
+          <div className={`transition-all duration-300 ${mobileOpen ? "opacity-0 scale-75" : "opacity-100 scale-100"} flex flex-col items-center justify-center gap-1.5 absolute`}>
+            <span className="block w-5 h-[2px] bg-[#5A554B]" />
+            <span className="block w-5 h-[2px] bg-[#5A554B]" />
+            <span className="block w-5 h-[2px] bg-[#5A554B]" />
+          </div>
+          <svg className={`w-5 h-5 text-[#5A554B] transition-all duration-300 ${mobileOpen ? "opacity-100 scale-100" : "opacity-0 scale-75"} absolute`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+          </svg>
         </button>
 
         {/* Desktop nav */}

@@ -87,6 +87,7 @@ export async function getSiteSpeakers(siteId: string) {
 
   return speakers.map((spk) => ({
     ...spk,
+    photo: spk.photo ? pb.files.getURL(spk, spk.photo) : "",
     sessionSpeakers: sessionSpeakers
       .filter((ss) => ss.speaker === spk.id)
       .map((ss) => ({
@@ -100,9 +101,13 @@ export async function getSiteSpeakers(siteId: string) {
 }
 
 export async function getSiteVenues(siteId: string) {
-  return pb.collection("venues").getFullList({
+  const venues = await pb.collection("venues").getFullList({
     filter: `site="${siteId}"`,
   });
+  return venues.map((v) => ({
+    ...v,
+    image: v.image ? pb.files.getURL(v, v.image) : "",
+  }));
 }
 
 export async function getSiteExhibitions(siteId: string) {

@@ -6,6 +6,7 @@ interface Speaker {
   name: string;
   affiliation: string;
   title: string;
+  photo?: string;
   bio?: string;
   topicZh?: string;
   topicEn?: string;
@@ -45,8 +46,12 @@ export default function SpeakerModal({ speaker, onClose, lang = "zh" }: SpeakerM
 
         {/* Left: Photo + Name */}
         <div className="md:w-[280px] shrink-0 bg-cream-dark p-8 flex flex-col items-center justify-center text-center">
-          <div className="w-32 h-32 rounded-full bg-cream flex items-center justify-center mb-6">
-            <Users className="w-12 h-12 text-muted-light/40" />
+          <div className="w-32 h-32 rounded-full bg-cream overflow-hidden flex items-center justify-center mb-6">
+            {speaker.photo ? (
+              <img src={speaker.photo} alt={speaker.name} className="w-full h-full object-cover" />
+            ) : (
+              <Users className="w-12 h-12 text-muted-light/40" />
+            )}
           </div>
           <h3 className="font-serif text-dark text-2xl font-bold mb-1">
             {speaker.name}

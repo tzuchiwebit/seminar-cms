@@ -1,11 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import pb from "@/lib/pb";
 import Link from "next/link";
-import SiteDashboard from "./SiteDashboardClient";
 import {
   Globe,
   Search,
@@ -28,10 +26,10 @@ type Site = {
   status: string;
   created: string;
   updated: string;
+  lastUpdated: string;
   _count: {
     speakers: number;
     days: number;
-    registrations: number;
   };
 };
 
@@ -50,6 +48,19 @@ const sideNav: { label: string; key: Tab; icon: typeof Globe }[] = [
   { label: "使用者", key: "users", icon: Users },
 ];
 
+function AvatarWithFallback({ src, name, size = 9 }: { src?: string; name: string; size?: number }) {
+  const [failed, setFailed] = useState(false);
+  const sizeClass = `w-${size} h-${size}`;
+  if (src && !failed) {
+    return <img src={src} alt="" className={`${sizeClass} rounded-full shrink-0`} onError={() => setFailed(true)} />;
+  }
+  return (
+    <div className={`${sizeClass} rounded-full bg-gold/80 flex items-center justify-center text-white text-sm font-medium shrink-0`}>
+      {name.charAt(0).toUpperCase()}
+    </div>
+  );
+}
+
 type Filter = "All Websites" | "published" | "draft";
 
 function timeAgo(date: string) {
@@ -65,21 +76,10 @@ function timeAgo(date: string) {
   return `${weeks} 週前`;
 }
 
-function AdminRouter() {
-  const searchParams = useSearchParams();
-  const siteSlug = searchParams.get("site");
-
-  if (siteSlug) {
-    return <SiteDashboard />;
-  }
-
-  return <DashboardContent />;
-}
-
 export default function AllWebsitesPage() {
   return (
     <Suspense>
-      <AdminRouter />
+      <DashboardContent />
     </Suspense>
   );
 }
@@ -97,6 +97,7 @@ function DashboardContent() {
 
   // Form state
   const [formName, setFormName] = useState("");
+  const [formNameEn, setFormNameEn] = useState("");
   const [formSlug, setFormSlug] = useState("");
   const [formStatus, setFormStatus] = useState("draft");
   const [formLang, setFormLang] = useState("both");
@@ -104,42 +105,40 @@ function DashboardContent() {
   const [formEndDate, setFormEndDate] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const fallbackSites: Site[] = [
-    {
-      id: "0",
-      name: "全球共善學思會",
-      slug: "symposium",
-      domain: null,
-      status: "published",
-      created: "2026-01-15T00:00:00.000Z",
-      updated: new Date().toISOString(),
-      _count: { speakers: 8, days: 3, registrations: 247 },
-    },
-  ];
+  const fallbackSites: Site[] = [];
 
   const fetchSites = useCallback(async () => {
     try {
-      const records = await pb.collection("sites").getFullList({ sort: "-created" });
+      const records = await pb.collection("sites").getFullList();
       const sitesWithCounts = await Promise.all(
         records.map(async (site) => {
-          const [speakers, days, registrations] = await Promise.all([
-            pb.collection("speakers").getList(1, 1, { filter: `site="${site.id}"` }),
-            pb.collection("days").getList(1, 1, { filter: `site="${site.id}"` }),
-            pb.collection("registrations").getList(1, 1, { filter: `site="${site.id}"` }),
-          ]);
+          let speakerCount = 0, dayCount = 0, lastUpdated = "";
+          try {
+            const [speakers, days] = await Promise.all([
+              pb.collection("speakers").getList(1, 1, { filter: `site="${site.id}"` }),
+              pb.collection("days").getList(1, 1, { filter: `site="${site.id}"` }),
+            ]);
+            speakerCount = speakers.totalItems;
+            dayCount = days.totalItems;
+          } catch { /* ignore count errors */ }
+          try {
+            const settings = await pb.collection("site_settings").getFullList({ filter: `site="${site.id}" && key="last_updated"` });
+            if (settings.length > 0) lastUpdated = settings[0].value;
+          } catch { /* ignore */ }
           return {
             ...site,
+            lastUpdated,
             _count: {
-              speakers: speakers.totalItems,
-              days: days.totalItems,
-              registrations: registrations.totalItems,
+              speakers: speakerCount,
+              days: dayCount,
             },
           };
         })
       );
-      setSites(sitesWithCounts.length > 0 ? sitesWithCounts as any : fallbackSites);
-    } catch {
-      setSites(fallbackSites);
+      setSites(sitesWithCounts as any);
+    } catch (err) {
+      console.error("Failed to fetch sites:", err);
+      setSites([]);
     } finally {
       setLoading(false);
     }
@@ -162,6 +161,7 @@ function DashboardContent() {
       const settingsPairs = [];
       if (formStartDate) settingsPairs.push({ key: "eventStartDate", value: formStartDate });
       if (formEndDate) settingsPairs.push({ key: "eventEndDate", value: formEndDate });
+      if (formNameEn) settingsPairs.push({ key: "site_name_en", value: formNameEn });
       settingsPairs.push({ key: "site_language", value: formLang });
       for (const s of settingsPairs) {
         await pb.collection("site_settings").create({
@@ -192,6 +192,7 @@ function DashboardContent() {
 
   const resetForm = () => {
     setFormName("");
+    setFormNameEn("");
     setFormSlug("");
     setFormStatus("draft");
     setFormLang("both");
@@ -386,7 +387,6 @@ function DashboardContent() {
                   <th className="px-6 py-3 font-medium">狀態</th>
                   <th className="px-6 py-3 font-medium">最後更新</th>
                   <th className="px-6 py-3 font-medium">講者</th>
-                  <th className="px-6 py-3 font-medium">報名</th>
                   <th className="px-6 py-3 font-medium">操作</th>
                 </tr>
               </thead>
@@ -425,18 +425,15 @@ function DashboardContent() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-muted">
-                      {timeAgo(site.updated)}
+                      {site.lastUpdated ? timeAgo(site.lastUpdated) : "—"}
                     </td>
                     <td className="px-6 py-4 text-sm text-muted">
                       {site._count.speakers}
                     </td>
-                    <td className="px-6 py-4 text-sm text-muted">
-                      {site._count.registrations}
-                    </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <Link
-                          href={`/admin?site=${site.slug}`}
+                          href={`/admin/${site.slug}`}
                           className="px-3 py-1.5 text-sm text-dark border border-border rounded-md hover:bg-cream transition-colors"
                         >
                           編輯
@@ -489,7 +486,7 @@ function DashboardContent() {
             <div className="px-8 py-6 space-y-5">
               <div className="grid grid-cols-2 gap-5">
                 <div>
-                  <label className="block text-sm font-medium text-dark mb-1.5">網站名稱</label>
+                  <label className="block text-sm font-medium text-dark mb-1.5">網站名稱（中文）</label>
                   <input
                     type="text"
                     value={formName}
@@ -498,6 +495,18 @@ function DashboardContent() {
                     className="w-full px-3.5 py-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/20 transition-colors"
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-dark mb-1.5">Site Name (English)</label>
+                  <input
+                    type="text"
+                    value={formNameEn}
+                    onChange={(e) => setFormNameEn(e.target.value)}
+                    placeholder="e.g. Tzu Chi Annual Gratitude"
+                    className="w-full px-3.5 py-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/20 transition-colors"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-5">
                 <div>
                   <label className="block text-sm font-medium text-dark mb-1.5">狀態</label>
                   <select
@@ -676,13 +685,7 @@ function UsersPanel({ users }: { users: UserItem[] }) {
                 <tr key={user.id} className="hover:bg-cream/30">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      {user.avatar ? (
-                        <img src={user.avatar} alt="" className="w-9 h-9 rounded-full shrink-0" />
-                      ) : (
-                        <div className="w-9 h-9 rounded-full bg-gold/80 flex items-center justify-center text-white text-sm font-medium shrink-0">
-                          {user.name?.charAt(0) || user.email?.charAt(0) || "?"}
-                        </div>
-                      )}
+                      <AvatarWithFallback src={user.avatar} name={user.name || user.email || "?"} size={9} />
                       <div>
                         <p className="text-sm font-medium text-dark">{user.name || "—"}</p>
                         <p className="text-xs text-muted">{user.email}</p>

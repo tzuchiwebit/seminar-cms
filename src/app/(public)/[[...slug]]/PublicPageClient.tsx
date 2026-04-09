@@ -76,10 +76,10 @@ export default function PublicPageClient() {
     );
   }
 
-  if (!data) {
+  if (!data || data.site?.status === "draft") {
     return (
       <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center">
-        <p className="text-[#5A554B]">找不到此網站</p>
+        <p className="text-[#5A554B]">{data?.site?.status === "draft" ? "此網站尚未發布" : "找不到此網站"}</p>
       </div>
     );
   }

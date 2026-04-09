@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+
 import pb from "@/lib/pb";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -13,6 +13,10 @@ async function upsertSetting(siteId: string, key: string, value: string) {
   } catch {
     await pb.collection("site_settings").create({ site: siteId, key, value });
   }
+}
+
+async function touchLastUpdated(siteId: string) {
+  await upsertSetting(siteId, "last_updated", new Date().toISOString());
 }
 
 async function loadSettings(siteId: string): Promise<Record<string, string>> {
@@ -238,7 +242,9 @@ function AppearancePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: 
     load();
   }, [siteId]);
 
-  const handleSave = async () => {
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout>>(null);
+
+  const doSave = useCallback(async () => {
     setSaving(true);
     try {
       const pairs = [
@@ -254,11 +260,25 @@ function AppearancePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: 
       for (const pair of pairs) {
         await upsertSetting(siteId, pair.key, pair.value);
       }
-      onToast?.("儲存成功");
+      touchLastUpdated(siteId);
+      onToast?.("已自動儲存");
     } catch {
-      onToast?.("儲存失敗，請重試");
+      onToast?.("自動儲存失敗");
     }
     setSaving(false);
+  }, [siteId, favicon, banner, bannerMobile, ogTitle, ogTitleEn, ogDescription, ogDescriptionEn, ogImage, onToast]);
+
+  // Auto-save with debounce
+  useEffect(() => {
+    if (!loaded) return;
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(() => { doSave(); }, 2000);
+    return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
+  }, [ogTitle, ogTitleEn, ogDescription, ogDescriptionEn, loaded, doSave]);
+
+  const handleSave = async () => {
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    await doSave();
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: "favicon" | "banner" | "banner-mobile" | "og") => {
@@ -271,17 +291,19 @@ function AppearancePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: 
       formData.append("category", "general");
       const record = await pb.collection("uploads").create(formData);
       const url = pb.files.getURL(record, record.file);
-      if (field === "favicon") setFavicon(url);
-      else if (field === "banner") { setBanner(url); if (!ogImage) setOgImage(url); }
-      else if (field === "banner-mobile") setBannerMobile(url);
-      else setOgImage(url);
-      onToast?.("上傳成功");
-    } catch {
-      onToast?.("上傳失敗");
+      if (field === "favicon") { setFavicon(url); await upsertSetting(siteId, "favicon", url); }
+      else if (field === "banner") { setBanner(url); await upsertSetting(siteId, "banner_image", url); if (!ogImage) { setOgImage(url); await upsertSetting(siteId, "og_image", url); } }
+      else if (field === "banner-mobile") { setBannerMobile(url); await upsertSetting(siteId, "banner_image_mobile", url); }
+      else { setOgImage(url); await upsertSetting(siteId, "og_image", url); }
+      touchLastUpdated(siteId);
+      onToast?.("上傳並儲存成功");
+    } catch (err: any) {
+      console.error("Upload failed:", err);
+      onToast?.(`上傳失敗：${err?.message || "請確認 uploads collection 已建立"}`);
     }
   };
 
-  if (!loaded) return <div className="flex items-center justify-center py-20"><div className="text-sm text-muted">載入中...</div></div>;
+  if (!loaded) return <div className="flex flex-col items-center justify-center py-20 gap-3"><div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" /><div className="text-sm text-muted">載入中...</div></div>;
 
   return (
     <div className="space-y-6">
@@ -425,6 +447,7 @@ function DescriptionPanel({ siteId, onToast }: { siteId: string; onToast?: (msg:
   const [highlights, setHighlights] = useState<HighlightItem[]>([]);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout>>(null);
 
   useEffect(() => {
     async function load() {
@@ -446,25 +469,40 @@ function DescriptionPanel({ siteId, onToast }: { siteId: string; onToast?: (msg:
     load();
   }, [siteId]);
 
-  const handleSave = async () => {
+  const doSave = useCallback(async (h1: string, h1e: string, b: string, be: string, hl: HighlightItem[]) => {
     setSaving(true);
     try {
       const pairs = [
-        { key: "description_headline", value: headlineZh },
-        { key: "description_headline_en", value: headlineEn },
-        { key: "description_body", value: bodyZh },
-        { key: "description_body_en", value: bodyEn },
-        { key: "description_highlights", value: JSON.stringify(highlights) },
+        { key: "description_headline", value: h1 },
+        { key: "description_headline_en", value: h1e },
+        { key: "description_body", value: b },
+        { key: "description_body_en", value: be },
+        { key: "description_highlights", value: JSON.stringify(hl) },
       ];
       for (const pair of pairs) {
         await upsertSetting(siteId, pair.key, pair.value);
       }
-      onToast?.("儲存成功");
-    } catch (e) {
-      console.error("Failed to save description", e);
-      onToast?.("儲存失敗，請重試");
+      touchLastUpdated(siteId);
+      onToast?.("已自動儲存");
+    } catch {
+      onToast?.("自動儲存失敗");
     }
     setSaving(false);
+  }, [siteId, onToast]);
+
+  // Auto-save with debounce
+  useEffect(() => {
+    if (!loaded) return;
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(() => {
+      doSave(headlineZh, headlineEn, bodyZh, bodyEn, highlights);
+    }, 2000);
+    return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
+  }, [headlineZh, headlineEn, bodyZh, bodyEn, highlights, loaded, doSave]);
+
+  const handleSave = async () => {
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    await doSave(headlineZh, headlineEn, bodyZh, bodyEn, highlights);
   };
 
   const updateHighlight = (index: number, field: "icon" | "label" | "labelEn", value: string) => {
@@ -481,7 +519,7 @@ function DescriptionPanel({ siteId, onToast }: { siteId: string; onToast?: (msg:
     setHighlights(highlights.filter((_, i) => i !== index));
   };
 
-  if (!loaded) return <div className="flex items-center justify-center py-20"><div className="text-sm text-muted">載入中...</div></div>;
+  if (!loaded) return <div className="flex flex-col items-center justify-center py-20 gap-3"><div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" /><div className="text-sm text-muted">載入中...</div></div>;
 
   return (
     <div className="space-y-6">
@@ -583,21 +621,33 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState({ name: "", nameCn: "", affiliation: "", title: "", bio: "", status: "draft" });
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [showSeeMore, setShowSeeMore] = useState(true);
+  const [speakersLoading, setSpeakersLoading] = useState(true);
 
   const fetchSpeakers = useCallback(async () => {
     try {
       const data = await pb.collection("speakers").getFullList({ filter: `site="${siteId}"`, sort: "sortOrder" });
       setSpeakers(data);
     } catch { /* ignore */ }
+    setSpeakersLoading(false);
   }, [siteId]);
 
-  useEffect(() => { fetchSpeakers(); }, [fetchSpeakers]);
+  useEffect(() => {
+    fetchSpeakers();
+    loadSettings(siteId).then((data) => {
+      if (data.speakers_see_more !== undefined) setShowSeeMore(data.speakers_see_more !== "false");
+    }).catch(() => {});
+  }, [siteId]);
 
   const filtered = filter === "All" ? speakers : speakers.filter((s) => s.status?.toLowerCase() === filter.toLowerCase());
 
   const openAdd = () => {
     setEditing(null);
     setForm({ name: "", nameCn: "", affiliation: "", title: "", bio: "", status: "draft" });
+    setPhotoFile(null);
+    setPhotoPreview(null);
     setShowForm(true);
   };
 
@@ -611,19 +661,30 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
       bio: item.bio || "",
       status: item.status || "draft",
     });
+    setPhotoFile(null);
+    setPhotoPreview(item.photo ? pb.files.getURL(item, item.photo) : null);
     setShowForm(true);
   };
 
   const handleSave = async () => {
     try {
-      const pbData = { name: form.name, nameCn: form.nameCn, affiliation: form.affiliation, title_field: form.title, bio: form.bio, status: form.status };
+      const formData = new FormData();
+      formData.append("name", form.name);
+      formData.append("nameCn", form.nameCn);
+      formData.append("affiliation", form.affiliation);
+      formData.append("title_field", form.title);
+      formData.append("bio", form.bio);
+      formData.append("status", form.status);
+      if (photoFile) formData.append("photo", photoFile);
       if (editing) {
-        await pb.collection("speakers").update(editing.id, pbData);
+        await pb.collection("speakers").update(editing.id, formData);
       } else {
-        await pb.collection("speakers").create({ ...pbData, site: siteId });
+        formData.append("site", siteId);
+        await pb.collection("speakers").create(formData);
       }
       setShowForm(false);
       fetchSpeakers();
+      touchLastUpdated(siteId);
       onToast?.(editing ? "儲存成功" : "新增成功");
     } catch (e) {
       console.error("Failed to save speaker", e);
@@ -643,8 +704,26 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
     }
   };
 
+  const toggleSeeMore = async () => {
+    const newVal = !showSeeMore;
+    setShowSeeMore(newVal);
+    await upsertSetting(siteId, "speakers_see_more", newVal ? "true" : "false");
+    onToast?.(newVal ? "「查看更多」按鈕已顯示" : "「查看更多」按鈕已隱藏");
+  };
+
   return (
     <>
+      {/* See More Toggle */}
+      <div className="flex items-center justify-between mb-4 px-4 py-3 bg-white rounded-xl border border-border">
+        <div className="flex items-center gap-3">
+          <span className={`w-2 h-2 rounded-full ${showSeeMore ? "bg-green" : "bg-muted/40"}`} />
+          <span className="text-sm text-dark font-medium">
+            講者卡片「查看更多」按鈕{showSeeMore ? "已顯示" : "已隱藏"}
+          </span>
+        </div>
+        <SectionToggle enabled={showSeeMore} onToggle={toggleSeeMore} />
+      </div>
+
       <div className="flex items-center justify-between mb-6">
         <div className="flex gap-1 border-b border-border">
           {["All", "Confirmed", "Pending", "Draft"].map((f) => {
@@ -676,7 +755,11 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
               <tr key={s.id} className="hover:bg-cream/30">
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-cream-dark flex items-center justify-center text-xs text-muted font-medium">{(s.name || "?").charAt(0)}</div>
+                    {s.photo ? (
+                      <img src={pb.files.getURL(s, s.photo)} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-cream-dark flex items-center justify-center text-xs text-muted font-medium">{(s.name || "?").charAt(0)}</div>
+                    )}
                     <div>
                       <span className="text-xs font-medium text-dark">{s.name}</span>
                       {s.nameCn && <p className="text-xs text-muted">{s.nameCn}</p>}
@@ -703,7 +786,10 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
+            {speakersLoading && (
+              <tr><td colSpan={5} className="px-6 py-12 text-center"><div className="flex flex-col items-center gap-3"><div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" /><span className="text-sm text-muted">載入中...</span></div></td></tr>
+            )}
+            {!speakersLoading && filtered.length === 0 && (
               <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-muted">尚無講者資料</td></tr>
             )}
           </tbody>
@@ -712,8 +798,33 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
 
       {showForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-lg space-y-4">
+          <div className="bg-white rounded-xl p-8 w-full max-w-lg space-y-5">
             <h3 className="text-lg font-semibold text-dark">{editing ? "編輯講者" : "新增講者"}</h3>
+            {/* Photo Upload */}
+            <div className="flex items-center gap-4">
+              {photoPreview ? (
+                <div className="w-20 h-20 rounded-full overflow-hidden border border-border shrink-0">
+                  <img src={photoPreview} alt="photo" className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <div className="w-20 h-20 rounded-full bg-cream-dark flex items-center justify-center text-muted text-sm shrink-0">
+                  無照片
+                </div>
+              )}
+              <div>
+                <label className="px-3 py-1.5 bg-cream border border-border rounded-lg text-sm text-dark cursor-pointer hover:bg-cream-dark transition-colors">
+                  上傳照片
+                  <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setPhotoFile(file);
+                      setPhotoPreview(URL.createObjectURL(file));
+                    }
+                  }} />
+                </label>
+                <p className="text-xs text-muted mt-1">建議正方形，至少 300x300px</p>
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-dark mb-1">姓名（英文）</label>
@@ -789,6 +900,8 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
   const [editingDay, setEditingDay] = useState<any>(null);
   const [dayForm, setDayForm] = useState({ date: "", titleZh: "", titleEn: "" });
 
+  const [programmeLoading, setProgrammeLoading] = useState(true);
+
   const fetchProgramme = useCallback(async () => {
     try {
       const data = await loadProgrammeData(siteId);
@@ -799,6 +912,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
       const spkData = await pb.collection("speakers").getFullList({ filter: `site="${siteId}"`, sort: "sortOrder" });
       setAllSpeakers(spkData);
     } catch { /* ignore */ }
+    setProgrammeLoading(false);
   }, [siteId]);
 
   useEffect(() => { fetchProgramme(); }, [fetchProgramme]);
@@ -850,9 +964,14 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
   };
 
   const addSpeakerToSession = (speakerId: string) => {
-    if (newRole === "moderator") setSessionModerators([...sessionModerators, speakerId]);
-    else if (newRole === "speaker") setSessionSpeakersList([...sessionSpeakers, speakerId]);
-    else setSessionDiscussants([...sessionDiscussants, speakerId]);
+    if (newRole === "moderator") {
+      if (!sessionModerators.includes(speakerId)) setSessionModerators([...sessionModerators, speakerId]);
+    } else if (newRole === "speaker") {
+      // Allow same speaker multiple times for multiple papers
+      setSessionSpeakersList([...sessionSpeakers, speakerId]);
+    } else {
+      if (!sessionDiscussants.includes(speakerId)) setSessionDiscussants([...sessionDiscussants, speakerId]);
+    }
     setSpeakerSearch("");
     setSpeakerDropdownOpen(false);
   };
@@ -881,7 +1000,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
   const openEdit = (session: any) => {
     setEditing(session);
     setForm({
-      sessionType: session.sessionType || session.type || "keynote",
+      sessionType: session.type || session.sessionType || "keynote",
       titleZh: session.titleZh || "",
       titleEn: session.titleEn || "",
       subtitleZh: session.subtitleZh || "",
@@ -894,13 +1013,23 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
     // Load session speaker assignments
     const spkrs = session.sessionSpeakers || [];
     setSessionModerators(spkrs.filter((ss: any) => ss.role === "moderator").map((ss: any) => ss.speaker?.id).filter(Boolean));
-    setSessionSpeakersList(spkrs.filter((ss: any) => ss.role === "speaker").map((ss: any) => ss.speaker?.id).filter(Boolean));
     setSessionDiscussants(spkrs.filter((ss: any) => ss.role === "discussant").map((ss: any) => ss.speaker?.id).filter(Boolean));
-    // Load paper titles for editing
+
+    // Load speakers from session_speakers with role "speaker" AND from papers
+    const ssSpkIds = spkrs.filter((ss: any) => ss.role === "speaker").map((ss: any) => ss.speaker?.id).filter(Boolean);
+    const paperSpkIds = (session.papers || []).map((p: any) => p.speaker?.id).filter(Boolean);
+    // Use paper speakers as the list (one entry per paper)
+    const speakerList = paperSpkIds.length > 0 ? paperSpkIds : ssSpkIds;
+    setSessionSpeakersList(speakerList);
+
+    // Load paper titles with index-based keys
     const ptitles: Record<string, string> = {};
-    for (const p of (session.papers || [])) {
-      if (p.speaker?.id) ptitles[p.speaker.id] = p.titleEn || p.titleZh || "";
-    }
+    paperSpkIds.forEach((spkId: string, i: number) => {
+      const paper = (session.papers || [])[i];
+      if (paper) {
+        ptitles[`${spkId}_${i}`] = paper.titleEn || paper.titleZh || "";
+      }
+    });
     setPaperTitles(ptitles);
     setShowForm(true);
   };
@@ -936,10 +1065,18 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
         await pb.collection("session_speakers").create({ session: sessionId, speaker: spkId, role: "moderator" });
       }
       let paperOrder = 1;
-      for (const spkId of sessionSpeakers) {
-        await pb.collection("session_speakers").create({ session: sessionId, speaker: spkId, role: "speaker" });
-        if (paperTitles[spkId]) {
-          await pb.collection("papers").create({ session: sessionId, speaker: spkId, titleEn: paperTitles[spkId], sortOrder: paperOrder++ });
+      const createdSpeakerIds = new Set<string>();
+      for (let i = 0; i < sessionSpeakers.length; i++) {
+        const spkId = sessionSpeakers[i];
+        // Only create session_speakers record once per unique speaker
+        if (!createdSpeakerIds.has(spkId)) {
+          await pb.collection("session_speakers").create({ session: sessionId, speaker: spkId, role: "speaker" });
+          createdSpeakerIds.add(spkId);
+        }
+        const paperKey = `${spkId}_${i}`;
+        const title = paperTitles[paperKey] || paperTitles[spkId] || "";
+        if (title) {
+          await pb.collection("papers").create({ session: sessionId, speaker: spkId, titleEn: title, sortOrder: paperOrder++ });
         }
       }
       for (const spkId of sessionDiscussants) {
@@ -947,6 +1084,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
       }
       setShowForm(false);
       fetchProgramme();
+      touchLastUpdated(siteId);
       onToast?.(editing ? "儲存成功" : "新增成功");
     } catch (e) {
       console.error("Failed to save session", e);
@@ -990,7 +1128,12 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
             <Calendar className="w-3.5 h-3.5" /> 新增日程
           </button>
         </div>
-        {days.length === 0 ? (
+        {programmeLoading ? (
+          <div className="flex flex-col items-center justify-center py-12 gap-3">
+            <div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
+            <span className="text-sm text-muted">載入中...</span>
+          </div>
+        ) : days.length === 0 ? (
           <div className="text-center py-6">
             <Calendar className="w-8 h-8 text-muted/30 mx-auto mb-2" />
             <p className="text-sm text-muted">尚無日程，請先新增日程</p>
@@ -1088,15 +1231,14 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <SessionBadge type={s.sessionType || s.type || ""} label={sessionTypeLabels[s.sessionType || s.type || ""] || s.sessionType || s.type || ""} />
-                    {s.subtitleEn && <span className="text-xs text-muted">{s.subtitleEn.split('\n')[0]}</span>}
+                    <SessionBadge type={s.type || s.sessionType || ""} label={sessionTypeLabels[s.type || s.sessionType || ""] || s.type || s.sessionType || ""} />
                   </div>
-                  <p className="text-sm font-medium text-dark">{s.titleEn || s.titleZh || s.title || ""}</p>
+                  <p className="text-sm font-medium text-dark">{s.titleEn || s.titleZh || ""}</p>
                   {s.titleZh && s.titleEn && <p className="text-xs text-muted">{s.titleZh}</p>}
 
-                  {/* Subtitle/Description */}
-                  {s.subtitleEn && s.subtitleEn.includes('\n') && (
-                    <p className="text-xs text-muted mt-1 whitespace-pre-line line-clamp-3">{s.subtitleEn}</p>
+                  {/* Subtitle */}
+                  {(s.subtitleEn || s.subtitleZh) && (
+                    <p className="text-xs text-muted mt-1 whitespace-pre-line line-clamp-3">{s.subtitleEn || s.subtitleZh}</p>
                   )}
 
                   {/* Moderator */}
@@ -1232,14 +1374,15 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
 
                   {/* List of assigned speakers */}
                   {[
-                    ...sessionModerators.map(id => ({ id, role: "moderator" })),
-                    ...sessionSpeakers.map(id => ({ id, role: "speaker" })),
-                    ...sessionDiscussants.map(id => ({ id, role: "discussant" })),
-                  ].map(({ id, role }) => {
+                    ...sessionModerators.map((id, i) => ({ id, role: "moderator", idx: i })),
+                    ...sessionSpeakers.map((id, i) => ({ id, role: "speaker", idx: i })),
+                    ...sessionDiscussants.map((id, i) => ({ id, role: "discussant", idx: i })),
+                  ].map(({ id, role, idx }) => {
                     const spk = allSpeakers.find((s: any) => s.id === id);
                     if (!spk) return null;
+                    const paperKey = `${id}_${idx}`;
                     return (
-                      <div key={`${role}-${id}`} className="flex items-center gap-2 bg-cream/50 rounded-lg px-3 py-2">
+                      <div key={`${role}-${idx}-${id}`} className="flex items-center gap-2 bg-cream/50 rounded-lg px-3 py-2">
                         <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${
                           role === "moderator" ? "bg-gold text-white" : role === "discussant" ? "bg-muted text-white" : "bg-green text-white"
                         }`}>
@@ -1249,16 +1392,16 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
                         {role === "speaker" && (
                           <input
                             type="text"
-                            value={paperTitles[id] || ""}
-                            onChange={(e) => setPaperTitles({ ...paperTitles, [id]: e.target.value })}
+                            value={paperTitles[paperKey] || paperTitles[id] || ""}
+                            onChange={(e) => setPaperTitles({ ...paperTitles, [paperKey]: e.target.value })}
                             placeholder="論文標題..."
                             className="flex-1 px-2 py-1 border border-border rounded text-xs"
                           />
                         )}
                         <button onClick={() => {
-                          if (role === "moderator") setSessionModerators(sessionModerators.filter(i => i !== id));
-                          else if (role === "speaker") setSessionSpeakersList(sessionSpeakers.filter(i => i !== id));
-                          else setSessionDiscussants(sessionDiscussants.filter(i => i !== id));
+                          if (role === "moderator") setSessionModerators(sessionModerators.filter((_, i) => i !== idx));
+                          else if (role === "speaker") setSessionSpeakersList(sessionSpeakers.filter((_, i) => i !== idx));
+                          else setSessionDiscussants(sessionDiscussants.filter((_, i) => i !== idx));
                         }} className="text-muted hover:text-red-500 text-sm shrink-0">&times;</button>
                       </div>
                     );
@@ -1321,20 +1464,26 @@ function VenuesPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: stri
   const [venues, setVenues] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
-  const [form, setForm] = useState({ name: "", nameZh: "", description: "", descriptionEn: "", address: "", type: "" });
+  const [form, setForm] = useState({ name: "", nameZh: "", description: "", descriptionEn: "", address: "", mapUrl: "", type: "", image: "" });
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [venuesLoading, setVenuesLoading] = useState(true);
 
   const fetchVenues = useCallback(async () => {
     try {
       const data = await pb.collection("venues").getFullList({ filter: `site="${siteId}"` });
       setVenues(data);
     } catch { /* ignore */ }
+    setVenuesLoading(false);
   }, [siteId]);
 
   useEffect(() => { fetchVenues(); }, [fetchVenues]);
 
   const openAdd = () => {
     setEditing(null);
-    setForm({ name: "", nameZh: "", description: "", descriptionEn: "", address: "", type: "" });
+    setForm({ name: "", nameZh: "", description: "", descriptionEn: "", address: "", mapUrl: "", type: "", image: "" });
+    setImageFile(null);
+    setImagePreview(null);
     setShowForm(true);
   };
 
@@ -1346,25 +1495,46 @@ function VenuesPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: stri
       description: item.description || "",
       descriptionEn: item.descriptionEn || "",
       address: item.address || "",
+      mapUrl: item.mapUrl || "",
       type: item.type || "",
+      image: item.image || "",
     });
+    setImageFile(null);
+    setImagePreview(item.image ? pb.files.getURL(item, item.image) : null);
     setShowForm(true);
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
   };
 
   const handleSave = async () => {
     try {
-      const payload = { ...form };
+      const formData = new FormData();
+      formData.append("name", form.name);
+      formData.append("nameZh", form.nameZh);
+      formData.append("description", form.description);
+      formData.append("descriptionEn", form.descriptionEn);
+      formData.append("address", form.address);
+      formData.append("mapUrl", form.mapUrl);
+      formData.append("type", form.type);
+      if (imageFile) formData.append("image", imageFile);
       if (editing) {
-        await pb.collection("venues").update(editing.id, payload);
+        await pb.collection("venues").update(editing.id, formData);
       } else {
-        await pb.collection("venues").create({ ...payload, site: siteId });
+        formData.append("site", siteId);
+        await pb.collection("venues").create(formData);
       }
       setShowForm(false);
       fetchVenues();
+      touchLastUpdated(siteId);
       onToast?.(editing ? "儲存成功" : "新增成功");
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to save venue", e);
-      onToast?.("儲存失敗，請重試");
+      onToast?.(`儲存失敗：${e?.message || "請重試"}`);
     }
   };
 
@@ -1389,54 +1559,95 @@ function VenuesPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: stri
         </button>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {venues.map((v: any) => (
-          <div key={v.id} className="bg-white rounded-xl border border-border p-6">
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-gold" />
-                <span className="text-xs text-gold uppercase tracking-wider font-medium">{v.type}</span>
+        {venuesLoading && (
+          <div className="col-span-2 flex flex-col items-center justify-center py-12 gap-3">
+            <div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
+            <span className="text-sm text-muted">載入中...</span>
+          </div>
+        )}
+        {!venuesLoading && venues.map((v: any) => (
+          <div key={v.id} className="bg-white rounded-xl border border-border overflow-hidden">
+            {v.image && (
+              <div className="w-full h-36 bg-cream-dark overflow-hidden">
+                <img src={pb.files.getURL(v, v.image)} alt={v.name} className="w-full h-full object-cover" />
               </div>
-              <div className="flex items-center gap-1">
-                <button onClick={() => openEdit(v)} className="p-1.5 text-muted hover:text-gold rounded-md hover:bg-gold/10"><Pencil className="w-4 h-4" /></button>
-                <button onClick={() => handleDelete(v.id)} className="p-1.5 text-muted hover:text-red-600 rounded-md hover:bg-red-50"><Trash2 className="w-4 h-4" /></button>
+            )}
+            <div className="p-6">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-gold" />
+                  <span className="text-xs text-gold uppercase tracking-wider font-medium">{v.type}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => openEdit(v)} className="p-1.5 text-muted hover:text-gold rounded-md hover:bg-gold/10"><Pencil className="w-4 h-4" /></button>
+                  <button onClick={() => handleDelete(v.id)} className="p-1.5 text-muted hover:text-red-600 rounded-md hover:bg-red-50"><Trash2 className="w-4 h-4" /></button>
+                </div>
               </div>
+              <p className="font-medium text-dark text-sm mb-1">{v.name}</p>
+              <p className="text-xs text-muted mb-1">{v.nameZh}</p>
+              {v.description && <p className="text-xs text-muted-light">{v.description}</p>}
             </div>
-            <p className="font-medium text-dark text-sm mb-1">{v.name}</p>
-            <p className="text-xs text-muted mb-1">{v.nameZh}</p>
-            {v.description && <p className="text-xs text-muted-light">{v.description}</p>}
           </div>
         ))}
-        {venues.length === 0 && (
+        {!venuesLoading && venues.length === 0 && (
           <div className="col-span-2 text-center text-sm text-muted py-8">尚無場地資料</div>
         )}
       </div>
 
       {showForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-lg space-y-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-4xl space-y-4">
             <h3 className="text-lg font-semibold text-dark">{editing ? "編輯場地" : "新增場地"}</h3>
+            {/* Image Upload */}
             <div>
-              <label className="block text-sm font-medium text-dark mb-1">Name 名稱（英文）</label>
-              <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+              <label className="block text-sm font-medium text-dark mb-1">場地圖片</label>
+              {(imagePreview || form.image) ? (
+                <div className="w-full h-40 rounded-lg overflow-hidden border border-border mb-2">
+                  <img src={imagePreview || form.image} alt="venue" className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <div className="w-full h-40 rounded-lg border border-dashed border-border flex items-center justify-center text-muted text-sm mb-2">
+                  尚未上傳圖片
+                </div>
+              )}
+              <label className="px-3 py-1.5 bg-cream border border-border rounded-lg text-sm text-dark cursor-pointer hover:bg-cream-dark transition-colors">
+                上傳圖片
+                <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleImageSelect} />
+              </label>
+              <span className="text-xs text-muted ml-2">建議 1920x800px</span>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-dark mb-1">名稱（中文）</label>
+                <input type="text" value={form.nameZh} onChange={(e) => setForm({ ...form, nameZh: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-dark mb-1">Name（English）</label>
+                <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-dark mb-1">說明（中文）</label>
+                <input type="text" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-dark mb-1">Description（English）</label>
+                <input type="text" value={form.descriptionEn} onChange={(e) => setForm({ ...form, descriptionEn: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-dark mb-1">地址 Address</label>
+                <input type="text" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="59 Shepard St, Cambridge, MA" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-dark mb-1">Google Maps URL</label>
+                <input type="text" value={form.mapUrl} onChange={(e) => setForm({ ...form, mapUrl: e.target.value })} placeholder="https://maps.google.com/..." className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+              </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-dark mb-1">Name 名稱（中文）</label>
-              <input type="text" value={form.nameZh} onChange={(e) => setForm({ ...form, nameZh: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark mb-1">Description 說明（中文）</label>
-              <input type="text" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark mb-1">Description 說明（英文）</label>
-              <input type="text" value={form.descriptionEn} onChange={(e) => setForm({ ...form, descriptionEn: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark mb-1">Google Maps URL</label>
-              <input type="text" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark mb-1">Type 類型</label>
+              <label className="block text-sm font-medium text-dark mb-1">類型 Type</label>
               <input type="text" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
             </div>
             <div className="flex justify-end gap-3">
@@ -1561,30 +1772,54 @@ const defaultColors: ThemeColor[] = [
   { label: "Cream", hex: "#F5F1EB" },
   { label: "Dark", hex: "#1A1816" },
   { label: "Gold", hex: "#9B7B2F" },
+  { label: "Gold Light (Tour)", hex: "#D4B85A" },
   { label: "Green", hex: "#3D5A3E" },
+  { label: "Sidebar", hex: "#3D3A36" },
+  { label: "Border", hex: "#E5E0D8" },
+  { label: "Muted", hex: "#5A554B" },
+  { label: "Background", hex: "#FAF8F5" },
+  { label: "White", hex: "#FFFFFF" },
 ];
 
 const defaultTypography: TypographyGroup[] = [
   {
     groupLabel: "標題",
     items: [
-      { key: "h1", label: "H1", fontFamily: "Noto Serif TC", fontSize: 48, fontWeight: 700, lineHeight: 1.2 },
-      { key: "h2", label: "H2", fontFamily: "Noto Serif TC", fontSize: 36, fontWeight: 700, lineHeight: 1.3 },
-      { key: "h3", label: "H3", fontFamily: "Noto Serif TC", fontSize: 24, fontWeight: 500, lineHeight: 1.4 },
+      { key: "h1", label: "H1 主標題", fontFamily: "Noto Serif TC", fontSize: 100, fontWeight: 900, lineHeight: 1.1 },
+      { key: "h2", label: "H2 區塊標題", fontFamily: "Noto Serif TC", fontSize: 48, fontWeight: 700, lineHeight: 1.2 },
+      { key: "h3", label: "H3 副標題", fontFamily: "Noto Serif TC", fontSize: 32, fontWeight: 700, lineHeight: 1.3 },
+      { key: "h4", label: "H4 小標題", fontFamily: "Noto Serif TC", fontSize: 24, fontWeight: 600, lineHeight: 1.4 },
+    ],
+  },
+  {
+    groupLabel: "標籤 / 分類",
+    items: [
+      { key: "label", label: "Section Label", fontFamily: "Inter", fontSize: 15, fontWeight: 600, lineHeight: 1.4 },
+      { key: "tag", label: "Tag 標籤", fontFamily: "Noto Sans TC", fontSize: 16, fontWeight: 500, lineHeight: 1.4 },
+      { key: "nav", label: "Nav 導覽列", fontFamily: "Inter", fontSize: 14, fontWeight: 500, lineHeight: 1.4 },
     ],
   },
   {
     groupLabel: "內文",
     items: [
-      { key: "body", label: "Body", fontFamily: "Noto Sans TC", fontSize: 16, fontWeight: 400, lineHeight: 1.6 },
+      { key: "body", label: "Body 內文", fontFamily: "Noto Sans TC", fontSize: 16, fontWeight: 400, lineHeight: 1.8 },
       { key: "body-lg", label: "Body Large", fontFamily: "Noto Sans TC", fontSize: 18, fontWeight: 400, lineHeight: 1.6 },
+      { key: "body-sm", label: "Body Small", fontFamily: "Noto Sans TC", fontSize: 15, fontWeight: 400, lineHeight: 1.8 },
     ],
   },
   {
-    groupLabel: "小字",
+    groupLabel: "小字 / 輔助",
     items: [
-      { key: "small", label: "Small", fontFamily: "Noto Sans TC", fontSize: 14, fontWeight: 400, lineHeight: 1.5 },
-      { key: "caption", label: "Caption", fontFamily: "Inter", fontSize: 12, fontWeight: 400, lineHeight: 1.4 },
+      { key: "small", label: "Small 小字", fontFamily: "Noto Sans TC", fontSize: 14, fontWeight: 400, lineHeight: 1.5 },
+      { key: "caption", label: "Caption 說明", fontFamily: "Inter", fontSize: 13, fontWeight: 400, lineHeight: 1.4 },
+      { key: "tiny", label: "Tiny 極小", fontFamily: "Inter", fontSize: 11, fontWeight: 400, lineHeight: 1.4 },
+    ],
+  },
+  {
+    groupLabel: "數字",
+    items: [
+      { key: "number-lg", label: "Number Large", fontFamily: "Inter", fontSize: 64, fontWeight: 200, lineHeight: 1.0 },
+      { key: "number-md", label: "Number Medium", fontFamily: "Inter", fontSize: 30, fontWeight: 700, lineHeight: 1.0 },
     ],
   },
 ];
@@ -1870,6 +2105,7 @@ function TourPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: string
   const [headerEn, setHeaderEn] = useState("");
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout>>(null);
 
   useEffect(() => {
     async function load() {
@@ -1889,18 +2125,31 @@ function TourPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: string
     load();
   }, [siteId]);
 
-  const handleSave = async () => {
+  const doSave = useCallback(async (t: TourGroup[], h: string, he: string) => {
     setSaving(true);
     try {
-      await upsertSetting(siteId, "tour_groups", JSON.stringify(tours));
-      await upsertSetting(siteId, "tour_header", headerText);
-      await upsertSetting(siteId, "tour_header_en", headerEn);
-      onToast?.("儲存成功");
-    } catch (e) {
-      console.error("Failed to save tours", e);
-      onToast?.("儲存失敗，請重試");
+      await upsertSetting(siteId, "tour_groups", JSON.stringify(t));
+      await upsertSetting(siteId, "tour_header", h);
+      await upsertSetting(siteId, "tour_header_en", he);
+      touchLastUpdated(siteId);
+      onToast?.("已自動儲存");
+    } catch {
+      onToast?.("自動儲存失敗");
     }
     setSaving(false);
+  }, [siteId, onToast]);
+
+  // Auto-save with debounce
+  useEffect(() => {
+    if (!loaded) return;
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(() => { doSave(tours, headerText, headerEn); }, 2000);
+    return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
+  }, [tours, headerText, headerEn, loaded, doSave]);
+
+  const handleSave = async () => {
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    await doSave(tours, headerText, headerEn);
   };
 
   const addTour = () => {
@@ -1918,7 +2167,7 @@ function TourPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: string
     setTours(tours.filter((_, i) => i !== index));
   };
 
-  if (!loaded) return <div className="flex items-center justify-center py-20"><div className="text-sm text-muted">載入中...</div></div>;
+  if (!loaded) return <div className="flex flex-col items-center justify-center py-20 gap-3"><div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" /><div className="text-sm text-muted">載入中...</div></div>;
 
   return (
     <div className="space-y-6">
@@ -2009,9 +2258,10 @@ function TourPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: string
   );
 }
 
-function SettingsPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: string) => void }) {
-  const [form, setForm] = useState({ name: "" });
+function SettingsPanel({ siteId, siteSlug, onToast }: { siteId: string; siteSlug: string; onToast?: (msg: string) => void }) {
+  const [form, setForm] = useState({ name: "", nameEn: "" });
   const [siteLang, setSiteLang] = useState("both");
+  const [siteStatus, setSiteStatus] = useState("draft");
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
@@ -2027,7 +2277,8 @@ function SettingsPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
           pb.collection("sites").getOne(siteId),
           loadSettings(siteId),
         ]);
-        setForm({ name: siteData.name || "" });
+        setForm({ name: siteData.name || "", nameEn: settings.site_name_en || "" });
+        setSiteStatus(siteData.status || "draft");
         if (settings.site_language) setSiteLang(settings.site_language);
       } catch { /* ignore */ }
       setLoaded(true);
@@ -2038,8 +2289,10 @@ function SettingsPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
   const handleSave = async () => {
     setSaving(true);
     try {
-      await pb.collection("sites").update(siteId, form);
+      await pb.collection("sites").update(siteId, { name: form.name });
+      await upsertSetting(siteId, "site_name_en", form.nameEn);
       await upsertSetting(siteId, "site_language", siteLang);
+      touchLastUpdated(siteId);
       onToast?.("儲存成功");
     } catch (e) {
       console.error("Failed to save settings", e);
@@ -2153,13 +2406,24 @@ function SettingsPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
     setDeployStatus("publishing");
     try {
       await pb.collection("sites").update(siteId, { ...form, status: "published" });
+      setSiteStatus("published");
       setDeployStatus("success");
     } catch {
       setDeployStatus("failed");
     }
   };
 
-  if (!loaded) return <div className="flex items-center justify-center py-20"><div className="text-sm text-muted">載入中...</div></div>;
+  const handleUnpublish = async () => {
+    try {
+      await pb.collection("sites").update(siteId, { status: "draft" });
+      setSiteStatus("draft");
+      onToast?.("網站已取消發布");
+    } catch {
+      onToast?.("操作失敗");
+    }
+  };
+
+  if (!loaded) return <div className="flex flex-col items-center justify-center py-20 gap-3"><div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" /><div className="text-sm text-muted">載入中...</div></div>;
 
   return (
     <div className="space-y-6">
@@ -2172,7 +2436,10 @@ function SettingsPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
       <div className="bg-white rounded-xl border border-border p-6 space-y-4">
         <div>
           <label className="block text-sm font-medium text-dark mb-1">網站名稱</label>
-          <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+          <div className="grid grid-cols-2 gap-4">
+            <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="中文名稱" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+            <input type="text" value={form.nameEn} onChange={(e) => setForm({ ...form, nameEn: e.target.value })} placeholder="English Name" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+          </div>
         </div>
         <div>
           <label className="block text-sm font-medium text-dark mb-1">網站語言</label>
@@ -2195,15 +2462,40 @@ function SettingsPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-semibold text-dark">部署網站</h3>
-            <p className="text-xs text-muted mt-0.5">驗證所有必填內容後發布網站</p>
+            <p className="text-xs text-muted mt-0.5">
+              {siteStatus === "published"
+                ? "網站已公開，所有人皆可訪問"
+                : "驗證所有必填內容後發布網站"}
+            </p>
           </div>
-          <button
-            onClick={handleDeploy}
-            disabled={validating}
-            className="px-5 py-2 bg-green text-white text-sm font-medium rounded-lg hover:bg-green/90 transition-colors disabled:opacity-50"
-          >
-            {validating ? "驗證中..." : "部署"}
-          </button>
+          <div className="flex items-center gap-2">
+            <a
+              href={`/${siteSlug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-5 py-2 bg-white text-dark text-sm font-medium rounded-lg border border-border hover:bg-cream transition-colors inline-flex items-center gap-1.5"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+              預覽
+            </a>
+            {siteStatus === "published" ? (
+              <button
+                onClick={handleUnpublish}
+                className="px-5 py-2 bg-green/10 text-green text-sm font-medium rounded-lg border border-green/30 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors inline-flex items-center gap-1.5"
+              >
+                <span className="w-2 h-2 rounded-full bg-green" />
+                已部署
+              </button>
+            ) : (
+              <button
+                onClick={handleDeploy}
+                disabled={validating}
+                className="px-5 py-2 bg-green text-white text-sm font-medium rounded-lg hover:bg-green/90 transition-colors disabled:opacity-50"
+              >
+                {validating ? "驗證中..." : "部署"}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -2297,10 +2589,9 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
   );
 }
 
-export default function SiteDashboard() {
-  const searchParams = useSearchParams();
+export default function SiteDashboard({ slugOverride }: { slugOverride?: string } = {}) {
   const { user, loading: authLoading } = useAuth();
-  const siteSlug = searchParams.get("site") || "";
+  const siteSlug = slugOverride || "";
   const [activeTab, setActiveTab] = useState<Tab>("description");
   const [siteId, setSiteId] = useState<string | null>(null);
   const [siteName, setSiteName] = useState("");
@@ -2447,7 +2738,7 @@ export default function SiteDashboard() {
         {/* Content */}
         <main className="flex-1 p-8">
           {/* Section toggle bar */}
-          {activeTab !== "settings" && activeTab !== "styles" && (
+          {activeTab !== "settings" && activeTab !== "styles" && activeTab !== "appearance" && (
             <div className="flex items-center justify-between mb-6 px-5 py-3 bg-white rounded-xl border border-border">
               <div className="flex items-center gap-3">
                 <span className={`w-2 h-2 rounded-full ${sectionVisibility[activeTab as SectionKey] ? "bg-green" : "bg-muted/40"}`} />
@@ -2475,7 +2766,7 @@ export default function SiteDashboard() {
               {activeTab === "venues" && siteId && <VenuesPanel siteId={siteId} onToast={setToast} />}
               {activeTab === "speakers" && siteId && <SpeakersPanel siteId={siteId} onToast={setToast} />}
               {activeTab === "styles" && <StylesPanel siteSlug={siteSlug} />}
-              {activeTab === "settings" && siteId && <SettingsPanel siteId={siteId} onToast={setToast} />}
+              {activeTab === "settings" && siteId && <SettingsPanel siteId={siteId} siteSlug={siteSlug} onToast={setToast} />}
             </>
           )}
         </main>
