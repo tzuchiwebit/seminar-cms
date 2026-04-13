@@ -40,6 +40,7 @@ type UserItem = {
   avatar: string;
   verified: boolean;
   created?: string;
+  last_active?: string;
 };
 
 type Tab = "sites" | "users";
@@ -88,7 +89,6 @@ export default function AllWebsitesPage() {
 function DashboardContent() {
   const { user, signOut, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("sites");
-  const [users, setUsers] = useState<UserItem[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -146,19 +146,24 @@ function DashboardContent() {
   }, []);
 
   useEffect(() => {
+    // Verify auth token is still valid on the server
+    if (pb.authStore.isValid) {
+      pb.collection("users").authRefresh().catch(() => {
+        pb.authStore.clear();
+        window.location.href = "/admin/login";
+      });
+    }
     fetchSites();
 
-    // Fetch users + their last active timestamps
-    async function loadUsers() {
-      try {
-        const records = await pb.collection("users").getFullList();
-        setUsers(records as any);
-      } catch (err) {
-        console.error("[loadUsers] failed:", err);
-        setUsers([]);
-      }
-    }
-    loadUsers();
+    // Heartbeat: update current user's last_active every 2 minutes
+    const touchActive = () => {
+      const uid = pb.authStore.record?.id;
+      if (!uid) return;
+      pb.collection("users").update(uid, { last_active: new Date().toISOString() }).catch(() => {});
+    };
+    touchActive();
+    const heartbeat = setInterval(touchActive, 2 * 60 * 1000);
+    return () => clearInterval(heartbeat);
   }, [fetchSites]);
 
   const handleCreate = async () => {
@@ -311,7 +316,7 @@ function DashboardContent() {
       {/* Main Content */}
       <main className="ml-[220px] flex-1 p-8">
         {activeTab === "users" ? (
-          <UsersPanel users={users} />
+          <UsersPanel />
         ) : activeTab !== "sites" ? (
           <div className="flex flex-col items-center justify-center h-[60vh] text-muted">
             <p className="text-lg font-medium">即將推出</p>
@@ -637,10 +642,32 @@ function DashboardContent() {
 }
 
 /* ─── Users Panel ─── */
-function UsersPanel({ users }: { users: UserItem[] }) {
+function UsersPanel() {
   const [sortAsc, setSortAsc] = useState(true);
+  const [userList, setUserList] = useState<any[]>([]);
+  const [status, setStatus] = useState("載入中...");
 
-  const sorted = [...users].sort((a, b) => {
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchUsers() {
+      try {
+        setStatus("正在取得使用者資料...");
+        const records = await pb.collection("users").getFullList();
+        if (!cancelled) {
+          setUserList(records);
+          setStatus(records.length === 0 ? "PocketBase 回傳 0 筆使用者。請至 PocketBase 後台 → users 集合 → API Rules → List/Search 設為: @request.auth.id != \"\"" : "");
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setStatus(`載入失敗: ${err?.message || err?.status || "未知錯誤"}`);
+        }
+      }
+    }
+    fetchUsers();
+    return () => { cancelled = true; };
+  }, []);
+
+  const sorted = [...userList].sort((a, b) => {
     const nameA = (a.name || a.email || "").toLowerCase();
     const nameB = (b.name || b.email || "").toLowerCase();
     return sortAsc ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
@@ -652,6 +679,12 @@ function UsersPanel({ users }: { users: UserItem[] }) {
         <h1 className="text-2xl font-semibold text-dark">使用者管理</h1>
         <p className="text-sm text-muted mt-1">已登入的帳號列表</p>
       </div>
+
+      {status && (
+        <div className="mb-4 p-4 bg-gold/10 border border-gold/30 rounded-lg text-sm text-dark">
+          {status}
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-border overflow-hidden">
         <table className="w-full">
@@ -669,12 +702,12 @@ function UsersPanel({ users }: { users: UserItem[] }) {
                     </span>
                 </button>
               </th>
-              <th className="px-6 py-3 font-medium">建立時間</th>
+              <th className="px-6 py-3 font-medium">狀態</th>
               <th className="px-6 py-3 font-medium">登入方式</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {sorted.length === 0 ? (
+            {sorted.length === 0 && !status ? (
               <tr>
                 <td colSpan={3} className="px-6 py-12 text-center text-muted">
                   尚無使用者
@@ -692,8 +725,20 @@ function UsersPanel({ users }: { users: UserItem[] }) {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-muted">
-                    {user.created ? new Date(user.created).toLocaleDateString() : "—"}
+                  <td className="px-6 py-4">
+                    {(() => {
+                      if (!user.last_active) return <span className="text-xs text-muted">尚未活動</span>;
+                      const diff = Date.now() - new Date(user.last_active).getTime();
+                      if (diff < 5 * 60 * 1000) {
+                        return (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green/10 text-green">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green animate-pulse" />
+                            在線
+                          </span>
+                        );
+                      }
+                      return <span className="text-xs text-muted">{timeAgo(user.last_active)}</span>;
+                    })()}
                   </td>
                   <td className="px-6 py-4 text-sm text-muted">
                     {user.avatar ? "Google" : "密碼"}
