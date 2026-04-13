@@ -1047,7 +1047,20 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
   const fetchProgramme = useCallback(async () => {
     try {
       const data = await loadProgrammeData(siteId);
-      setDays(data);
+      // Auto-renumber days if not sequential (1, 2, 3...)
+      let needsRefetch = false;
+      for (let i = 0; i < data.length; i++) {
+        if ((data[i] as any).dayNumber !== i + 1) {
+          await pb.collection("days").update(data[i].id, { dayNumber: i + 1 });
+          needsRefetch = true;
+        }
+      }
+      if (needsRefetch) {
+        const refreshed = await loadProgrammeData(siteId);
+        setDays(refreshed);
+      } else {
+        setDays(data);
+      }
     } catch { /* ignore */ }
     // Also fetch all speakers for assignment
     try {
@@ -1110,7 +1123,14 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
         await pb.collection("sessions").delete(s.id);
       }
       await pb.collection("days").delete(d.id);
-      if (activeDay >= days.length - 1) setActiveDay(Math.max(0, days.length - 2));
+      // Renumber remaining days sequentially (Day 1, 2, 3...)
+      const remaining = days.filter((day: any) => day.id !== d.id);
+      for (let i = 0; i < remaining.length; i++) {
+        if (remaining[i].dayNumber !== i + 1) {
+          await pb.collection("days").update(remaining[i].id, { dayNumber: i + 1 });
+        }
+      }
+      if (activeDay >= remaining.length) setActiveDay(Math.max(0, remaining.length - 1));
       fetchProgramme();
       onToast?.("日程已刪除");
     } catch {
@@ -2904,7 +2924,7 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
   const isWarning = /請填寫|尚未|incomplete/i.test(message);
 
   useEffect(() => {
-    const timer = setTimeout(onClose, isWarning ? 4000 : 2500);
+    const timer = setTimeout(onClose, isError ? 5000 : isWarning ? 6000 : 3500);
     return () => clearTimeout(timer);
   }, [onClose, isWarning]);
 
