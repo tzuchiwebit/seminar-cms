@@ -673,10 +673,10 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
     });
     // Parse talk titles - stored as JSON array or legacy single string
     try {
-      const parsed = JSON.parse(item.talkTitles || "[]");
-      setTalkTitles(parsed.length > 0 ? parsed : [{ en: item.talkTitle || "", zh: item.talkTitleZh || "" }]);
+      const parsed = JSON.parse(item.talkTitle || "[]");
+      setTalkTitles(parsed.length > 0 ? parsed : [{ en: "", zh: "" }]);
     } catch {
-      setTalkTitles([{ en: item.talkTitle || "", zh: item.talkTitleZh || "" }]);
+      setTalkTitles([{ en: "", zh: "" }]);
     }
     setPhotoFile(null);
     setPhotoPreview(item.photo ? pb.files.getURL(item, item.photo) : null);
@@ -710,9 +710,7 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
       formData.append("titleZh", form.titleZh);
       // Store multiple talk titles as JSON; also keep first one in legacy fields for backward compat
       const validTitles = talkTitles.filter(t => t.en.trim() || t.zh.trim());
-      formData.append("talkTitles", JSON.stringify(validTitles));
-      formData.append("talkTitle", validTitles[0]?.en || "");
-      formData.append("talkTitleZh", validTitles[0]?.zh || "");
+      formData.append("talkTitle", JSON.stringify(validTitles));
       formData.append("bio", form.bio);
       formData.append("status", form.status);
       if (photoFile) formData.append("photo", photoFile);
@@ -820,9 +818,8 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
                   {s.titleZh && <p className="text-muted">{s.titleZh}</p>}
                   {(() => {
                     let talks: { en: string; zh: string }[] = [];
-                    try { talks = JSON.parse(s.talkTitles || "[]"); } catch { /* */ }
-                    if (talks.length === 0 && (s.talkTitle || s.talkTitleZh)) talks = [{ en: s.talkTitle || "", zh: s.talkTitleZh || "" }];
-                    return talks.filter(t => t.en || t.zh).map((t, i) => (
+                    try { talks = JSON.parse(s.talkTitle || "[]"); } catch { /* */ }
+                    return talks.filter((t: any) => t.en || t.zh).map((t: any, i: number) => (
                       <p key={i} className="text-[11px] text-gold mt-0.5 truncate max-w-[280px]" title={t.en || t.zh}>
                         {t.en || t.zh}
                       </p>
@@ -1132,10 +1129,10 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
       const spk = allSpeakers.find((s: any) => s.id === speakerId);
       if (spk) {
         let titles: { en: string; zh: string }[] = [];
-        try { titles = JSON.parse(spk.talkTitles || "[]"); } catch { /* ignore */ }
+        try { titles = JSON.parse(spk.talkTitle || "[]"); } catch { /* ignore */ }
         // Count how many times this speaker is already added to figure out which talk title to use
         const existingCount = sessionSpeakers.filter(id => id === speakerId).length;
-        const talk = titles[existingCount] || titles[0] || { en: spk.talkTitle || "", zh: spk.talkTitleZh || "" };
+        const talk = titles[existingCount] || titles[0] || { en: "", zh: "" };
         const paperKey = `${speakerId}_${newIdx}`;
         if (talk.en) setPaperTitles(prev => ({ ...prev, [paperKey]: talk.en }));
         if (talk.zh) setPaperTitlesZh(prev => ({ ...prev, [paperKey]: talk.zh }));
@@ -1684,8 +1681,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
                                 <span>{s.name} {s.nameCn ? `(${s.nameCn})` : ""}</span>
                                 {(() => {
                                   let talks: { en: string; zh: string }[] = [];
-                                  try { talks = JSON.parse(s.talkTitles || "[]"); } catch { /* */ }
-                                  if (talks.length === 0 && s.talkTitle) talks = [{ en: s.talkTitle, zh: s.talkTitleZh || "" }];
+                                  try { talks = JSON.parse(s.talkTitle || "[]"); } catch { /* */ }
                                   return talks.length > 0 && (
                                     <p className="text-[10px] text-gold truncate">{talks.map(t => t.en || t.zh).join(" / ")}</p>
                                   );
