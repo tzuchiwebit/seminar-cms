@@ -39,7 +39,7 @@ type UserItem = {
   email: string;
   avatar: string;
   verified: boolean;
-  lastActive?: string;
+  created?: string;
 };
 
 type Tab = "sites" | "users";
@@ -152,38 +152,13 @@ function DashboardContent() {
     async function loadUsers() {
       try {
         const records = await pb.collection("users").getFullList();
-        // Load activity data from site_settings
-        const activityRecords = await pb.collection("site_settings").getFullList({
-          filter: records.map((u) => `key="user_active_${u.id}"`).join(" || ") || 'key="__none__"',
-        });
-        const activityMap: Record<string, string> = {};
-        for (const r of activityRecords) {
-          const userId = r.key.replace("user_active_", "");
-          activityMap[userId] = r.value;
-        }
-        setUsers(records.map((u) => ({ ...u, lastActive: activityMap[u.id] || "" })) as any);
-      } catch {
+        setUsers(records as any);
+      } catch (err) {
+        console.error("[loadUsers] failed:", err);
         setUsers([]);
       }
     }
     loadUsers();
-
-    // Heartbeat: update current user's last active every 2 minutes
-    const updateActivity = async () => {
-      if (!pb.authStore.record?.id) return;
-      const userId = pb.authStore.record.id;
-      try {
-        const existing = await pb.collection("site_settings").getFullList({ filter: `key="user_active_${userId}"` });
-        if (existing.length > 0) {
-          await pb.collection("site_settings").update(existing[0].id, { value: new Date().toISOString() });
-        } else {
-          await pb.collection("site_settings").create({ key: `user_active_${userId}`, value: new Date().toISOString(), site: "" });
-        }
-      } catch { /* ignore */ }
-    };
-    updateActivity();
-    const heartbeat = setInterval(updateActivity, 2 * 60 * 1000);
-    return () => clearInterval(heartbeat);
   }, [fetchSites]);
 
   const handleCreate = async () => {
@@ -694,7 +669,7 @@ function UsersPanel({ users }: { users: UserItem[] }) {
                     </span>
                 </button>
               </th>
-              <th className="px-6 py-3 font-medium">狀態</th>
+              <th className="px-6 py-3 font-medium">建立時間</th>
               <th className="px-6 py-3 font-medium">登入方式</th>
             </tr>
           </thead>
@@ -717,21 +692,8 @@ function UsersPanel({ users }: { users: UserItem[] }) {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    {(() => {
-                      if (!user.lastActive) return <span className="text-xs text-muted">—</span>;
-                      const diff = Date.now() - new Date(user.lastActive).getTime();
-                      const isOnline = diff < 5 * 60 * 1000; // 5 minutes
-                      if (isOnline) {
-                        return (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green/10 text-green">
-                            <span className="w-1.5 h-1.5 rounded-full bg-green animate-pulse" />
-                            在線
-                          </span>
-                        );
-                      }
-                      return <span className="text-xs text-muted">{timeAgo(user.lastActive)}</span>;
-                    })()}
+                  <td className="px-6 py-4 text-sm text-muted">
+                    {user.created ? new Date(user.created).toLocaleDateString() : "—"}
                   </td>
                   <td className="px-6 py-4 text-sm text-muted">
                     {user.avatar ? "Google" : "密碼"}
