@@ -621,11 +621,14 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
   const [filter, setFilter] = useState("All");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
-  const [form, setForm] = useState({ name: "", nameCn: "", affiliation: "", title: "", bio: "", status: "draft" });
+  const [form, setForm] = useState({ name: "", nameCn: "", affiliation: "", affiliationZh: "", title: "", titleZh: "", bio: "", status: "draft" });
+  const [talkTitles, setTalkTitles] = useState<{ en: string; zh: string }[]>([{ en: "", zh: "" }]);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [showSeeMore, setShowSeeMore] = useState(true);
+  const [speakerErrors, setSpeakerErrors] = useState<string[]>([]);
   const [speakersLoading, setSpeakersLoading] = useState(true);
+  const [siteLang, setSiteLang] = useState<string>("both");
 
   const fetchSpeakers = useCallback(async () => {
     try {
@@ -639,6 +642,7 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
     fetchSpeakers();
     loadSettings(siteId).then((data) => {
       if (data.speakers_see_more !== undefined) setShowSeeMore(data.speakers_see_more !== "false");
+      setSiteLang(data.site_language || "both");
     }).catch(() => {});
   }, [siteId]);
 
@@ -646,34 +650,69 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
 
   const openAdd = () => {
     setEditing(null);
-    setForm({ name: "", nameCn: "", affiliation: "", title: "", bio: "", status: "draft" });
+    setForm({ name: "", nameCn: "", affiliation: "", affiliationZh: "", title: "", titleZh: "", bio: "", status: "draft" });
+    setTalkTitles([{ en: "", zh: "" }]);
     setPhotoFile(null);
     setPhotoPreview(null);
+    setSpeakerErrors([]);
     setShowForm(true);
   };
 
   const openEdit = (item: any) => {
+    setSpeakerErrors([]);
     setEditing(item);
     setForm({
       name: item.name || "",
       nameCn: item.nameCn || "",
       affiliation: item.affiliation || "",
+      affiliationZh: item.affiliationZh || "",
       title: item.title_field || item.title || "",
+      titleZh: item.titleZh || "",
       bio: item.bio || "",
       status: item.status || "draft",
     });
+    // Parse talk titles - stored as JSON array or legacy single string
+    try {
+      const parsed = JSON.parse(item.talkTitles || "[]");
+      setTalkTitles(parsed.length > 0 ? parsed : [{ en: item.talkTitle || "", zh: item.talkTitleZh || "" }]);
+    } catch {
+      setTalkTitles([{ en: item.talkTitle || "", zh: item.talkTitleZh || "" }]);
+    }
     setPhotoFile(null);
     setPhotoPreview(item.photo ? pb.files.getURL(item, item.photo) : null);
     setShowForm(true);
   };
 
   const handleSave = async () => {
+    const errors: string[] = [];
+    const needEn = siteLang === "en" || siteLang === "both";
+    const needZh = siteLang === "zh" || siteLang === "both";
+    if (needEn && !form.name.trim()) errors.push("name");
+    if (needZh && !form.nameCn.trim()) errors.push("nameCn");
+    if (needEn && !form.affiliation.trim()) errors.push("affiliation");
+    if (needZh && !form.affiliationZh.trim()) errors.push("affiliationZh");
+    if (needEn && !form.title.trim()) errors.push("title");
+    if (needZh && !form.titleZh.trim()) errors.push("titleZh");
+    if (errors.length > 0) {
+      setSpeakerErrors(errors);
+      const labels: Record<string, string> = { name: "姓名（EN）", nameCn: "姓名（中文）", affiliation: "所屬單位（EN）", affiliationZh: "所屬單位（中文）", title: "職稱（EN）", titleZh: "職稱（中文）" };
+      onToast?.(`請填寫：${errors.map(e => labels[e]).join("、")}`);
+      return;
+    }
+    setSpeakerErrors([]);
     try {
       const formData = new FormData();
       formData.append("name", form.name);
       formData.append("nameCn", form.nameCn);
       formData.append("affiliation", form.affiliation);
+      formData.append("affiliationZh", form.affiliationZh);
       formData.append("title_field", form.title);
+      formData.append("titleZh", form.titleZh);
+      // Store multiple talk titles as JSON; also keep first one in legacy fields for backward compat
+      const validTitles = talkTitles.filter(t => t.en.trim() || t.zh.trim());
+      formData.append("talkTitles", JSON.stringify(validTitles));
+      formData.append("talkTitle", validTitles[0]?.en || "");
+      formData.append("talkTitleZh", validTitles[0]?.zh || "");
       formData.append("bio", form.bio);
       formData.append("status", form.status);
       if (photoFile) formData.append("photo", photoFile);
@@ -696,12 +735,17 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
   const handleDelete = async (id: string) => {
     if (!confirm("確定刪除？")) return;
     try {
+      // Delete related session_speakers first
+      const relatedSS = await pb.collection("session_speakers").getFullList({ filter: `speaker="${id}"` });
+      for (const ss of relatedSS) {
+        await pb.collection("session_speakers").delete(ss.id);
+      }
       await pb.collection("speakers").delete(id);
       fetchSpeakers();
       onToast?.("刪除成功");
     } catch (e) {
       console.error("Failed to delete speaker", e);
-      onToast?.("儲存失敗，請重試");
+      onToast?.("刪除失敗，請重試");
     }
   };
 
@@ -767,16 +811,23 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
                     </div>
                   </div>
                 </td>
-                <td className="px-6 py-4 text-xs text-muted">{s.affiliation}</td>
-                <td className="px-6 py-4 text-xs text-muted">
-                  {s.title_field || s.title}
-                  {s.papers && s.papers.length > 0 && (
-                    <div className="mt-1 space-y-0.5">
-                      {s.papers.map((p: any) => (
-                        <p key={p.id} className="text-[10px] text-gold truncate max-w-[200px]">{p.titleEn || p.titleZh}</p>
-                      ))}
-                    </div>
-                  )}
+                <td className="px-6 py-4 text-xs">
+                  <span className="text-dark font-medium">{s.affiliation}</span>
+                  {s.affiliationZh && <p className="text-muted">{s.affiliationZh}</p>}
+                </td>
+                <td className="px-6 py-4 text-xs">
+                  <span className="text-dark font-medium">{s.title_field || s.title}</span>
+                  {s.titleZh && <p className="text-muted">{s.titleZh}</p>}
+                  {(() => {
+                    let talks: { en: string; zh: string }[] = [];
+                    try { talks = JSON.parse(s.talkTitles || "[]"); } catch { /* */ }
+                    if (talks.length === 0 && (s.talkTitle || s.talkTitleZh)) talks = [{ en: s.talkTitle || "", zh: s.talkTitleZh || "" }];
+                    return talks.filter(t => t.en || t.zh).map((t, i) => (
+                      <p key={i} className="text-[11px] text-gold mt-0.5 truncate max-w-[280px]" title={t.en || t.zh}>
+                        {t.en || t.zh}
+                      </p>
+                    ));
+                  })()}
                 </td>
                 <td className="px-6 py-4"><StatusBadge status={s.status || "draft"} /></td>
                 <td className="px-6 py-4">
@@ -798,67 +849,153 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-8 w-full max-w-lg space-y-5">
-            <h3 className="text-lg font-semibold text-dark">{editing ? "編輯講者" : "新增講者"}</h3>
-            {/* Photo Upload */}
-            <div className="flex items-center gap-4">
-              {photoPreview ? (
-                <div className="w-20 h-20 rounded-full overflow-hidden border border-border shrink-0">
-                  <img src={photoPreview} alt="photo" className="w-full h-full object-cover" />
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowForm(false)}>
+          <div className="bg-white rounded-2xl w-[90vw] max-w-4xl max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="px-8 py-5 border-b border-border flex items-center justify-between shrink-0">
+              <h3 className="text-lg font-semibold text-dark">{editing ? "編輯講者" : "新增講者"}</h3>
+              <button onClick={() => setShowForm(false)} className="p-1.5 text-muted hover:text-dark"><X className="w-5 h-5" /></button>
+            </div>
+
+            {/* Body */}
+            <div className="p-8 overflow-y-auto flex-1 space-y-6">
+              {/* Photo + Basic Info row */}
+              <div className="flex gap-6">
+                {/* Photo */}
+                <div className="shrink-0 flex flex-col items-center gap-2">
+                  {photoPreview ? (
+                    <div className="w-24 h-24 rounded-full overflow-hidden border border-border">
+                      <img src={photoPreview} alt="photo" className="w-full h-full object-cover" />
+                    </div>
+                  ) : (
+                    <div className="w-24 h-24 rounded-full bg-cream-dark flex items-center justify-center text-muted text-sm">
+                      無照片
+                    </div>
+                  )}
+                  <label className="px-3 py-1.5 bg-cream border border-border rounded-lg text-xs text-dark cursor-pointer hover:bg-cream-dark transition-colors">
+                    上傳照片
+                    <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setPhotoFile(file);
+                        setPhotoPreview(URL.createObjectURL(file));
+                      }
+                    }} />
+                  </label>
                 </div>
-              ) : (
-                <div className="w-20 h-20 rounded-full bg-cream-dark flex items-center justify-center text-muted text-sm shrink-0">
-                  無照片
+                {/* Name + Affiliation + Title */}
+                <div className="flex-1 space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    {(siteLang === "en" || siteLang === "both") && (
+                    <div>
+                      <label className="block text-xs font-medium text-muted mb-1">姓名（英文） <span className="text-red-500">*</span></label>
+                      <input type="text" value={form.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setSpeakerErrors(prev => prev.filter(x => x !== "name")); }} className={`w-full px-3 py-2 border rounded-lg text-sm ${speakerErrors.includes("name") ? "border-red-400 bg-red-50" : "border-border"}`} />
+                    </div>
+                    )}
+                    {(siteLang === "zh" || siteLang === "both") && (
+                    <div>
+                      <label className="block text-xs font-medium text-muted mb-1">姓名（中文） <span className="text-red-500">*</span></label>
+                      <input type="text" value={form.nameCn} onChange={(e) => { setForm({ ...form, nameCn: e.target.value }); setSpeakerErrors(prev => prev.filter(x => x !== "nameCn")); }} className={`w-full px-3 py-2 border rounded-lg text-sm ${speakerErrors.includes("nameCn") ? "border-red-400 bg-red-50" : "border-border"}`} />
+                    </div>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    {(siteLang === "en" || siteLang === "both") && (
+                    <div>
+                      <label className="block text-xs font-medium text-muted mb-1">所屬單位 Affiliation（EN） <span className="text-red-500">*</span></label>
+                      <input type="text" value={form.affiliation} onChange={(e) => { setForm({ ...form, affiliation: e.target.value }); setSpeakerErrors(prev => prev.filter(x => x !== "affiliation")); }} placeholder="e.g. Tzu Chi University" className={`w-full px-3 py-2 border rounded-lg text-sm ${speakerErrors.includes("affiliation") ? "border-red-400 bg-red-50" : "border-border"}`} />
+                    </div>
+                    )}
+                    {(siteLang === "zh" || siteLang === "both") && (
+                    <div>
+                      <label className="block text-xs font-medium text-muted mb-1">所屬單位（中文） <span className="text-red-500">*</span></label>
+                      <input type="text" value={form.affiliationZh} onChange={(e) => { setForm({ ...form, affiliationZh: e.target.value }); setSpeakerErrors(prev => prev.filter(x => x !== "affiliationZh")); }} placeholder="例：慈濟大學" className={`w-full px-3 py-2 border rounded-lg text-sm ${speakerErrors.includes("affiliationZh") ? "border-red-400 bg-red-50" : "border-border"}`} />
+                    </div>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    {(siteLang === "en" || siteLang === "both") && (
+                    <div>
+                      <label className="block text-xs font-medium text-muted mb-1">職稱 Title（EN） <span className="text-red-500">*</span></label>
+                      <input type="text" value={form.title} onChange={(e) => { setForm({ ...form, title: e.target.value }); setSpeakerErrors(prev => prev.filter(x => x !== "title")); }} placeholder="e.g. Professor" className={`w-full px-3 py-2 border rounded-lg text-sm ${speakerErrors.includes("title") ? "border-red-400 bg-red-50" : "border-border"}`} />
+                    </div>
+                    )}
+                    {(siteLang === "zh" || siteLang === "both") && (
+                    <div>
+                      <label className="block text-xs font-medium text-muted mb-1">職稱（中文） <span className="text-red-500">*</span></label>
+                      <input type="text" value={form.titleZh} onChange={(e) => { setForm({ ...form, titleZh: e.target.value }); setSpeakerErrors(prev => prev.filter(x => x !== "titleZh")); }} placeholder="例：教授" className={`w-full px-3 py-2 border rounded-lg text-sm ${speakerErrors.includes("titleZh") ? "border-red-400 bg-red-50" : "border-border"}`} />
+                    </div>
+                    )}
+                  </div>
                 </div>
-              )}
-              <div>
-                <label className="px-3 py-1.5 bg-cream border border-border rounded-lg text-sm text-dark cursor-pointer hover:bg-cream-dark transition-colors">
-                  上傳照片
-                  <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      setPhotoFile(file);
-                      setPhotoPreview(URL.createObjectURL(file));
-                    }
-                  }} />
-                </label>
-                <p className="text-xs text-muted mt-1">建議正方形，至少 300x300px</p>
+              </div>
+
+              {/* Talk Titles — multiple entries */}
+              <div className="border-t border-border pt-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-dark">演講題目 Talk Titles</h4>
+                  <button
+                    onClick={() => setTalkTitles([...talkTitles, { en: "", zh: "" }])}
+                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium border border-dashed border-gold text-gold rounded-lg hover:bg-gold/5 transition-colors"
+                  >
+                    <Plus className="w-3 h-3" /> 新增題目
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {talkTitles.map((t, i) => (
+                    <div key={i} className="flex items-start gap-2">
+                      <span className="text-xs text-muted mt-2.5 w-5 shrink-0 text-center">{i + 1}.</span>
+                      <div className={`flex-1 grid gap-2 ${siteLang === "both" ? "grid-cols-2" : "grid-cols-1"}`}>
+                        {(siteLang === "en" || siteLang === "both") && (
+                        <input
+                          type="text"
+                          value={t.en}
+                          onChange={(e) => { const arr = [...talkTitles]; arr[i] = { ...arr[i], en: e.target.value }; setTalkTitles(arr); }}
+                          placeholder="Talk title (EN)..."
+                          className="w-full px-3 py-2 border border-border rounded-lg text-sm"
+                        />
+                        )}
+                        {(siteLang === "zh" || siteLang === "both") && (
+                        <input
+                          type="text"
+                          value={t.zh}
+                          onChange={(e) => { const arr = [...talkTitles]; arr[i] = { ...arr[i], zh: e.target.value }; setTalkTitles(arr); }}
+                          placeholder="演講題目（中文）..."
+                          className="w-full px-3 py-2 border border-border rounded-lg text-sm"
+                        />
+                        )}
+                      </div>
+                      {talkTitles.length > 1 && (
+                        <button onClick={() => setTalkTitles(talkTitles.filter((_, j) => j !== i))} className="p-1.5 text-muted hover:text-red-500 mt-1.5 shrink-0">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Bio + Status row */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-muted mb-1">簡介 Bio</label>
+                  <textarea rows={4} value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted mb-1">狀態</label>
+                  <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-white">
+                    <option value="draft">草稿</option>
+                    <option value="confirmed">已確認</option>
+                    <option value="pending">待確認</option>
+                  </select>
+                </div>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-dark mb-1">姓名（英文）</label>
-                <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-dark mb-1">姓名（中文）</label>
-                <input type="text" value={form.nameCn} onChange={(e) => setForm({ ...form, nameCn: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark mb-1">所屬單位 Affiliation</label>
-              <input type="text" value={form.affiliation} onChange={(e) => setForm({ ...form, affiliation: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark mb-1">職稱 Title</label>
-              <input type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark mb-1">簡介 Bio</label>
-              <textarea rows={3} value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark mb-1">狀態</label>
-              <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-white">
-                <option value="draft">草稿</option>
-                <option value="confirmed">已確認</option>
-                <option value="pending">待確認</option>
-              </select>
-            </div>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-muted">取消</button>
-              <button onClick={handleSave} className="px-4 py-2 bg-gold text-white text-sm rounded-lg">儲存</button>
+
+            {/* Footer */}
+            <div className="px-8 py-4 border-t border-border flex justify-end gap-3 shrink-0 bg-cream/30">
+              <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-muted border border-border rounded-lg hover:bg-cream">取消</button>
+              <button onClick={handleSave} className="px-5 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light">儲存</button>
             </div>
           </div>
         </div>
@@ -883,6 +1020,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
   const [speakerSearch, setSpeakerSearch] = useState("");
   const [speakerDropdownOpen, setSpeakerDropdownOpen] = useState(false);
   const [paperTitles, setPaperTitles] = useState<Record<string, string>>({});
+  const [paperTitlesZh, setPaperTitlesZh] = useState<Record<string, string>>({});
   const speakerDropdownRef = useRef<HTMLDivElement>(null);
 
   // Close speaker dropdown on click outside
@@ -902,6 +1040,12 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
   const [dayForm, setDayForm] = useState({ date: "", titleZh: "", titleEn: "" });
 
   const [programmeLoading, setProgrammeLoading] = useState(true);
+  const [siteLang, setSiteLang] = useState<string>("both");
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+
+  useEffect(() => {
+    loadSettings(siteId).then((s) => setSiteLang(s.site_language || "both"));
+  }, [siteId]);
 
   const fetchProgramme = useCallback(async () => {
     try {
@@ -955,6 +1099,19 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
   const handleDeleteDay = async (d: any) => {
     if (!confirm(`確定刪除 Day ${d.dayNumber}？所有場次也會一起刪除。`)) return;
     try {
+      // Delete all sessions under this day (and their related records)
+      const sessions = await pb.collection("sessions").getFullList({ filter: `day="${d.id}"` });
+      for (const s of sessions) {
+        const relatedSpeakers = await pb.collection("session_speakers").getFullList({ filter: `session="${s.id}"` });
+        for (const ss of relatedSpeakers) {
+          await pb.collection("session_speakers").delete(ss.id);
+        }
+        const relatedPapers = await pb.collection("papers").getFullList({ filter: `session="${s.id}"` });
+        for (const paper of relatedPapers) {
+          await pb.collection("papers").delete(paper.id);
+        }
+        await pb.collection("sessions").delete(s.id);
+      }
       await pb.collection("days").delete(d.id);
       if (activeDay >= days.length - 1) setActiveDay(Math.max(0, days.length - 2));
       fetchProgramme();
@@ -969,7 +1126,20 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
       if (!sessionModerators.includes(speakerId)) setSessionModerators([...sessionModerators, speakerId]);
     } else if (newRole === "speaker") {
       // Allow same speaker multiple times for multiple papers
+      const newIdx = sessionSpeakers.length;
       setSessionSpeakersList([...sessionSpeakers, speakerId]);
+      // Auto-fill paper title from speaker's talk titles
+      const spk = allSpeakers.find((s: any) => s.id === speakerId);
+      if (spk) {
+        let titles: { en: string; zh: string }[] = [];
+        try { titles = JSON.parse(spk.talkTitles || "[]"); } catch { /* ignore */ }
+        // Count how many times this speaker is already added to figure out which talk title to use
+        const existingCount = sessionSpeakers.filter(id => id === speakerId).length;
+        const talk = titles[existingCount] || titles[0] || { en: spk.talkTitle || "", zh: spk.talkTitleZh || "" };
+        const paperKey = `${speakerId}_${newIdx}`;
+        if (talk.en) setPaperTitles(prev => ({ ...prev, [paperKey]: talk.en }));
+        if (talk.zh) setPaperTitlesZh(prev => ({ ...prev, [paperKey]: talk.zh }));
+      }
     } else {
       if (!sessionDiscussants.includes(speakerId)) setSessionDiscussants([...sessionDiscussants, speakerId]);
     }
@@ -994,11 +1164,14 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
     setSessionSpeakersList([]);
     setSessionDiscussants([]);
     setPaperTitles({});
+    setPaperTitlesZh({});
     setSpeakerSearch("");
+    setValidationErrors([]);
     setShowForm(true);
   };
 
   const openEdit = (session: any) => {
+    setValidationErrors([]);
     setEditing(session);
     setForm({
       sessionType: session.type || session.sessionType || "keynote",
@@ -1025,17 +1198,33 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
 
     // Load paper titles with index-based keys
     const ptitles: Record<string, string> = {};
+    const ptitlesZh: Record<string, string> = {};
     paperSpkIds.forEach((spkId: string, i: number) => {
       const paper = (session.papers || [])[i];
       if (paper) {
-        ptitles[`${spkId}_${i}`] = paper.titleEn || paper.titleZh || "";
+        ptitles[`${spkId}_${i}`] = paper.titleEn || "";
+        ptitlesZh[`${spkId}_${i}`] = paper.titleZh || "";
       }
     });
     setPaperTitles(ptitles);
+    setPaperTitlesZh(ptitlesZh);
     setShowForm(true);
   };
 
   const handleSave = async () => {
+    // Validate required fields based on site language
+    const errors: string[] = [];
+    if (!form.startTime.trim()) errors.push("開始時間");
+    if ((siteLang === "zh" || siteLang === "both") && !form.titleZh.trim()) errors.push("標題（中文）");
+    if ((siteLang === "en" || siteLang === "both") && !form.titleEn.trim()) errors.push("標題（英文）");
+
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      onToast?.(`請填寫：${errors.join("、")}`);
+      return;
+    }
+    setValidationErrors([]);
+
     try {
       const sessionData = {
         type: form.sessionType,
@@ -1075,9 +1264,10 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
           createdSpeakerIds.add(spkId);
         }
         const paperKey = `${spkId}_${i}`;
-        const title = paperTitles[paperKey] || paperTitles[spkId] || "";
-        if (title) {
-          await pb.collection("papers").create({ session: sessionId, speaker: spkId, titleEn: title, sortOrder: paperOrder++ });
+        const titleEn = paperTitles[paperKey] || paperTitles[spkId] || "";
+        const titleZh = paperTitlesZh[paperKey] || paperTitlesZh[spkId] || "";
+        if (titleEn || titleZh) {
+          await pb.collection("papers").create({ session: sessionId, speaker: spkId, titleEn, titleZh, sortOrder: paperOrder++ });
         }
       }
       for (const spkId of sessionDiscussants) {
@@ -1096,12 +1286,22 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
   const handleDelete = async (id: string) => {
     if (!confirm("確定刪除？")) return;
     try {
+      // Delete related session_speakers first
+      const relatedSpeakers = await pb.collection("session_speakers").getFullList({ filter: `session="${id}"` });
+      for (const ss of relatedSpeakers) {
+        await pb.collection("session_speakers").delete(ss.id);
+      }
+      // Delete related papers
+      const relatedPapers = await pb.collection("papers").getFullList({ filter: `session="${id}"` });
+      for (const paper of relatedPapers) {
+        await pb.collection("papers").delete(paper.id);
+      }
       await pb.collection("sessions").delete(id);
       fetchProgramme();
       onToast?.("刪除成功");
     } catch (e) {
       console.error("Failed to delete session", e);
-      onToast?.("儲存失敗，請重試");
+      onToast?.("刪除失敗，請重試");
     }
   };
 
@@ -1323,8 +1523,45 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-muted mb-1">開始時間</label>
-                  <input type="text" value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                  <label className="block text-xs font-medium text-muted mb-1">開始時間 <span className="text-red-500">*</span></label>
+                  <div className={`flex items-center gap-1 px-3 py-2 border rounded-lg ${validationErrors.includes("開始時間") ? "border-red-400 bg-red-50" : "border-border"}`}>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={2}
+                      placeholder="HH"
+                      value={form.startTime.split(":")[0] || ""}
+                      onChange={(e) => {
+                        const v = e.target.value.replace(/\D/g, "").slice(0, 2);
+                        const mm = form.startTime.split(":")[1] || "00";
+                        setForm({ ...form, startTime: v ? `${v}:${mm}` : "" });
+                        setValidationErrors(prev => prev.filter(x => x !== "開始時間"));
+                      }}
+                      onBlur={(e) => {
+                        const n = parseInt(e.target.value);
+                        if (!isNaN(n) && n >= 0 && n <= 23) {
+                          const mm = form.startTime.split(":")[1] || "00";
+                          setForm({ ...form, startTime: `${String(n).padStart(2, "0")}:${mm}` });
+                        }
+                      }}
+                      className="w-8 bg-transparent text-sm text-center font-medium text-dark outline-none"
+                    />
+                    <span className="text-dark font-bold">:</span>
+                    <select
+                      value={form.startTime.split(":")[1] || ""}
+                      onChange={(e) => {
+                        const hh = form.startTime.split(":")[0] || "00";
+                        setForm({ ...form, startTime: `${hh}:${e.target.value}` });
+                        setValidationErrors(prev => prev.filter(x => x !== "開始時間"));
+                      }}
+                      className="bg-transparent text-sm font-medium text-dark outline-none cursor-pointer"
+                    >
+                      <option value="">--</option>
+                      {["00","05","10","15","20","25","30","35","40","45","50","55"].map(m => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
@@ -1341,12 +1578,12 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
               {/* Row 2: Titles */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-muted mb-1">標題（英文）</label>
-                  <input type="text" value={form.titleEn} onChange={(e) => setForm({ ...form, titleEn: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                  <label className="block text-xs font-medium text-muted mb-1">標題（英文）{(siteLang === "en" || siteLang === "both") && <span className="text-red-500">*</span>}</label>
+                  <input type="text" value={form.titleEn} onChange={(e) => { setForm({ ...form, titleEn: e.target.value }); setValidationErrors(prev => prev.filter(e => e !== "標題（英文）")); }} className={`w-full px-3 py-2 border rounded-lg text-sm ${validationErrors.includes("標題（英文）") ? "border-red-400 bg-red-50" : "border-border"}`} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-muted mb-1">標題（中文）</label>
-                  <input type="text" value={form.titleZh} onChange={(e) => setForm({ ...form, titleZh: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                  <label className="block text-xs font-medium text-muted mb-1">標題（中文）{(siteLang === "zh" || siteLang === "both") && <span className="text-red-500">*</span>}</label>
+                  <input type="text" value={form.titleZh} onChange={(e) => { setForm({ ...form, titleZh: e.target.value }); setValidationErrors(prev => prev.filter(e => e !== "標題（中文）")); }} className={`w-full px-3 py-2 border rounded-lg text-sm ${validationErrors.includes("標題（中文）") ? "border-red-400 bg-red-50" : "border-border"}`} />
                 </div>
               </div>
 
@@ -1391,13 +1628,26 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
                         </span>
                         <span className="text-xs font-medium text-dark shrink-0 w-28 truncate">{spk.name}</span>
                         {role === "speaker" && (
-                          <input
-                            type="text"
-                            value={paperTitles[paperKey] || paperTitles[id] || ""}
-                            onChange={(e) => setPaperTitles({ ...paperTitles, [paperKey]: e.target.value })}
-                            placeholder="論文標題..."
-                            className="flex-1 px-2 py-1 border border-border rounded text-xs"
-                          />
+                          <div className="flex-1 flex gap-1.5">
+                            {(siteLang === "en" || siteLang === "both") && (
+                              <input
+                                type="text"
+                                value={paperTitles[paperKey] || paperTitles[id] || ""}
+                                onChange={(e) => setPaperTitles({ ...paperTitles, [paperKey]: e.target.value })}
+                                placeholder="Paper title (EN)..."
+                                className="flex-1 px-2 py-1 border border-border rounded text-xs"
+                              />
+                            )}
+                            {(siteLang === "zh" || siteLang === "both") && (
+                              <input
+                                type="text"
+                                value={paperTitlesZh[paperKey] || paperTitlesZh[id] || ""}
+                                onChange={(e) => setPaperTitlesZh({ ...paperTitlesZh, [paperKey]: e.target.value })}
+                                placeholder="論文標題（中文）..."
+                                className="flex-1 px-2 py-1 border border-border rounded text-xs"
+                              />
+                            )}
+                          </div>
                         )}
                         <button onClick={() => {
                           if (role === "moderator") setSessionModerators(sessionModerators.filter((_, i) => i !== idx));
@@ -1431,7 +1681,15 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
                             .slice(0, 8)
                             .map((s: any) => (
                               <button key={s.id} onClick={() => addSpeakerToSession(s.id)} className="w-full text-left px-3 py-2 text-xs hover:bg-cream transition-colors">
-                                {s.name} {s.nameCn ? `(${s.nameCn})` : ""}
+                                <span>{s.name} {s.nameCn ? `(${s.nameCn})` : ""}</span>
+                                {(() => {
+                                  let talks: { en: string; zh: string }[] = [];
+                                  try { talks = JSON.parse(s.talkTitles || "[]"); } catch { /* */ }
+                                  if (talks.length === 0 && s.talkTitle) talks = [{ en: s.talkTitle, zh: s.talkTitleZh || "" }];
+                                  return talks.length > 0 && (
+                                    <p className="text-[10px] text-gold truncate">{talks.map(t => t.en || t.zh).join(" / ")}</p>
+                                  );
+                                })()}
                               </button>
                             ))
                           }
@@ -2646,15 +2904,26 @@ function SettingsPanel({ siteId, siteSlug, onToast }: { siteId: string; siteSlug
    ═══════════════════════════════════════════ */
 
 function Toast({ message, onClose }: { message: string; onClose: () => void }) {
+  const isError = /失敗|錯誤|error/i.test(message);
+  const isWarning = /請填寫|尚未|incomplete/i.test(message);
+
   useEffect(() => {
-    const timer = setTimeout(onClose, 2500);
+    const timer = setTimeout(onClose, isWarning ? 4000 : 2500);
     return () => clearTimeout(timer);
-  }, [onClose]);
+  }, [onClose, isWarning]);
+
+  const bg = isError ? "bg-red-700" : isWarning ? "bg-amber-600" : "bg-dark";
 
   return (
     <div className="fixed bottom-6 right-6 z-[200] transition-all duration-300">
-      <div className="bg-dark text-cream px-5 py-3 rounded-lg shadow-lg flex items-center gap-2 text-sm">
-        <span className="text-green">&#10003;</span>
+      <div className={`${bg} text-white px-5 py-3 rounded-lg shadow-lg flex items-center gap-2 text-sm max-w-sm`}>
+        {isError ? (
+          <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+        ) : isWarning ? (
+          <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        ) : (
+          <span className="text-green">&#10003;</span>
+        )}
         {message}
       </div>
     </div>

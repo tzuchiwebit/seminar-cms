@@ -5,7 +5,9 @@ import { X, Users } from "lucide-react";
 interface Speaker {
   name: string;
   affiliation: string;
+  affiliationZh?: string;
   title: string;
+  titleZh?: string;
   photo?: string;
   bio?: string;
   topicZh?: string;
@@ -56,9 +58,11 @@ export default function SpeakerModal({ speaker, onClose, lang = "zh" }: SpeakerM
           <h3 className="font-serif text-dark text-2xl font-bold mb-1">
             {speaker.name}
           </h3>
-          <p className="font-inter text-muted text-sm">{speaker.affiliation}</p>
+          <p className="font-inter text-muted text-sm">
+            {lang === "en" ? (speaker.affiliation || speaker.affiliationZh) : (speaker.affiliationZh || speaker.affiliation)}
+          </p>
           <p className="font-inter text-muted-light text-xs mt-1">
-            {speaker.title}
+            {lang === "en" ? (speaker.title || speaker.titleZh) : (speaker.titleZh || speaker.title)}
           </p>
         </div>
 
@@ -70,7 +74,7 @@ export default function SpeakerModal({ speaker, onClose, lang = "zh" }: SpeakerM
               {lang === "en" ? "About" : "關於"}
             </p>
             <p className="font-sans text-muted text-sm leading-relaxed">
-              {speaker.bio || `${speaker.name}${speaker.affiliation ? `, ${speaker.affiliation}` : ""}${speaker.title ? ` — ${speaker.title}` : ""}`}
+              {speaker.bio || `${speaker.name}${(() => { const aff = lang === "en" ? (speaker.affiliation || speaker.affiliationZh) : (speaker.affiliationZh || speaker.affiliation); return aff ? `, ${aff}` : ""; })()}${(() => { const t = lang === "en" ? (speaker.title || speaker.titleZh) : (speaker.titleZh || speaker.title); return t ? ` — ${t}` : ""; })()}`}
             </p>
           </div>
 

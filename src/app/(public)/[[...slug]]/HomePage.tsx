@@ -184,7 +184,7 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
         papers: s.papers?.length > 0 ? s.papers.map((p: any) => ({
           title: lang === "en" ? (p.titleEn || p.titleZh) : (p.titleZh || p.titleEn),
           author: p.speaker?.name || "",
-          affiliation: p.speaker?.affiliation || "",
+          affiliation: lang === "en" ? (p.speaker?.affiliation || p.speaker?.affiliationZh || "") : (p.speaker?.affiliationZh || p.speaker?.affiliation || ""),
         })) : undefined,
         discussants: s.sessionSpeakers?.filter((ss: any) => ss.role === "discussant").length > 0
           ? s.sessionSpeakers.filter((ss: any) => ss.role === "discussant").map((ss: any) => ss.speaker.name)
@@ -257,7 +257,9 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
     nameCn: s.nameCn || null,
     photo: s.photo || null,
     affiliation: s.affiliation || "",
-    title: s.title || "",
+    affiliationZh: s.affiliationZh || undefined,
+    title: s.title_field || s.title || "",
+    titleZh: s.titleZh || undefined,
     bio: s.bio || undefined,
     topicZh: s.papers?.[0]?.titleEn || s.papers?.[0]?.titleZh || undefined,
     papers: s.papers?.map((p: any) => p.titleEn || p.titleZh) || [],
@@ -653,10 +655,10 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
                     {speaker.nameCn || "\u00A0"}
                   </p>
                   <p className="font-inter text-muted text-[11px] mt-1.5 line-clamp-1">
-                    {speaker.affiliation || "\u00A0"}
+                    {(lang === "en" ? (speaker.affiliation || speaker.affiliationZh) : (speaker.affiliationZh || speaker.affiliation)) || "\u00A0"}
                   </p>
                   <p className="font-inter text-muted-light text-[11px] mt-0.5 line-clamp-1">
-                    {speaker.title || "\u00A0"}
+                    {(lang === "en" ? (speaker.title || speaker.titleZh) : (speaker.titleZh || speaker.title)) || "\u00A0"}
                   </p>
                   {settings.speakers_see_more !== "false" && (
                     <span className="inline-flex items-center gap-1 mt-2 font-inter text-[11px] text-gold font-medium group-hover:text-gold-light transition-colors">
