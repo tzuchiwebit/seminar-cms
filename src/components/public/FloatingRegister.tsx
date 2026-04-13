@@ -4,11 +4,15 @@ export default function FloatingRegister({
   lang,
   onToggleLang,
   showLangToggle = true,
+  googleFormUrl,
 }: {
   lang: "zh" | "en";
   onToggleLang: () => void;
   showLangToggle?: boolean;
+  googleFormUrl?: string;
 }) {
+  // Hide register button if no Google Form URL is set
+  const showRegisterBtn = !!googleFormUrl;
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-center gap-3">
       {/* Language Toggle — 中/EN circle design */}
@@ -31,8 +35,10 @@ export default function FloatingRegister({
       )}
 
       {/* Register Button */}
-      <a
-        href="#register"
+      {showRegisterBtn && <a
+        href={googleFormUrl}
+        target="_blank"
+        rel="noopener noreferrer"
         className="group w-[72px] h-[72px] rounded-full relative block"
       >
         <span
@@ -56,7 +62,7 @@ export default function FloatingRegister({
             </>
           )}
         </span>
-      </a>
+      </a>}
     </div>
   );
 }

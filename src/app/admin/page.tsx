@@ -39,6 +39,7 @@ type UserItem = {
   email: string;
   avatar: string;
   verified: boolean;
+  lastActive?: string;
 };
 
 type Tab = "sites" | "users";
@@ -146,7 +147,43 @@ function DashboardContent() {
 
   useEffect(() => {
     fetchSites();
-    pb.collection("users").getFullList().then((records) => setUsers(records as any)).catch(() => {});
+
+    // Fetch users + their last active timestamps
+    async function loadUsers() {
+      try {
+        const records = await pb.collection("users").getFullList();
+        // Load activity data from site_settings
+        const activityRecords = await pb.collection("site_settings").getFullList({
+          filter: records.map((u) => `key="user_active_${u.id}"`).join(" || ") || 'key="__none__"',
+        });
+        const activityMap: Record<string, string> = {};
+        for (const r of activityRecords) {
+          const userId = r.key.replace("user_active_", "");
+          activityMap[userId] = r.value;
+        }
+        setUsers(records.map((u) => ({ ...u, lastActive: activityMap[u.id] || "" })) as any);
+      } catch {
+        setUsers([]);
+      }
+    }
+    loadUsers();
+
+    // Heartbeat: update current user's last active every 2 minutes
+    const updateActivity = async () => {
+      if (!pb.authStore.record?.id) return;
+      const userId = pb.authStore.record.id;
+      try {
+        const existing = await pb.collection("site_settings").getFullList({ filter: `key="user_active_${userId}"` });
+        if (existing.length > 0) {
+          await pb.collection("site_settings").update(existing[0].id, { value: new Date().toISOString() });
+        } else {
+          await pb.collection("site_settings").create({ key: `user_active_${userId}`, value: new Date().toISOString(), site: "" });
+        }
+      } catch { /* ignore */ }
+    };
+    updateActivity();
+    const heartbeat = setInterval(updateActivity, 2 * 60 * 1000);
+    return () => clearInterval(heartbeat);
   }, [fetchSites]);
 
   const handleCreate = async () => {
@@ -657,26 +694,14 @@ function UsersPanel({ users }: { users: UserItem[] }) {
                     </span>
                 </button>
               </th>
-              <th className="px-6 py-3 font-medium">
-                <button
-                  onClick={() => setSortAsc(!sortAsc)}
-                  className="flex items-center gap-1.5 hover:text-dark transition-colors"
-                >
-                  名稱
-                  <span className="inline-flex items-center gap-0.5 ml-1">
-                      <span className={`text-[9px] ${sortAsc ? "text-dark" : "text-muted/30"}`}>▲</span>
-                      <span className={`text-[9px] ${!sortAsc ? "text-dark" : "text-muted/30"}`}>▼</span>
-                    </span>
-                </button>
-              </th>
-              <th className="px-6 py-3 font-medium">角色</th>
+              <th className="px-6 py-3 font-medium">狀態</th>
               <th className="px-6 py-3 font-medium">登入方式</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-6 py-12 text-center text-muted">
+                <td colSpan={3} className="px-6 py-12 text-center text-muted">
                   尚無使用者
                 </td>
               </tr>
@@ -692,13 +717,21 @@ function UsersPanel({ users }: { users: UserItem[] }) {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-dark">
-                    {user.name || "—"}
-                  </td>
                   <td className="px-6 py-4">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gold/10 text-gold capitalize">
-                      admin
-                    </span>
+                    {(() => {
+                      if (!user.lastActive) return <span className="text-xs text-muted">—</span>;
+                      const diff = Date.now() - new Date(user.lastActive).getTime();
+                      const isOnline = diff < 5 * 60 * 1000; // 5 minutes
+                      if (isOnline) {
+                        return (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green/10 text-green">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green animate-pulse" />
+                            在線
+                          </span>
+                        );
+                      }
+                      return <span className="text-xs text-muted">{timeAgo(user.lastActive)}</span>;
+                    })()}
                   </td>
                   <td className="px-6 py-4 text-sm text-muted">
                     {user.avatar ? "Google" : "密碼"}

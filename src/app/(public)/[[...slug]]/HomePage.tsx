@@ -688,6 +688,7 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
         lang={lang}
         onToggleLang={() => setLang(lang === "en" ? "zh" : "en")}
         showLangToggle={showLangToggle}
+        googleFormUrl={settings.registration_google_form_url}
       />
     </>
   );

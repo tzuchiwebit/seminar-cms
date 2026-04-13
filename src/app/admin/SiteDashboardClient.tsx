@@ -85,7 +85,7 @@ import {
 /* ═══════════════════════════════════════════
    NAV ITEMS
    ═══════════════════════════════════════════ */
-type Tab = "appearance" | "description" | "tour" | "programme" | "venues" | "speakers" | "styles" | "settings";
+type Tab = "appearance" | "description" | "tour" | "programme" | "venues" | "speakers" | "registration" | "styles" | "settings";
 
 const navItems: { label: string; id: Tab; icon: React.ComponentType<{ className?: string }> }[] = [
   { label: "網站外觀", id: "appearance", icon: Globe },
@@ -94,6 +94,7 @@ const navItems: { label: string; id: Tab; icon: React.ComponentType<{ className?
   { label: "議程", id: "programme", icon: Calendar },
   { label: "場地", id: "venues", icon: MapPin },
   { label: "講者", id: "speakers", icon: Users },
+  { label: "報名設定", id: "registration", icon: ClipboardList },
   { label: "樣式設定", id: "styles", icon: Palette },
   { label: "設定", id: "settings", icon: Settings },
 ];
@@ -1661,6 +1662,77 @@ function VenuesPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: stri
   );
 }
 
+/* ═══════════════════════════════════════════
+   REGISTRATION SETTINGS PANEL
+   ═══════════════════════════════════════════ */
+
+function RegistrationSettingsPanel({ siteId, onToast }: { siteId: string; onToast: (msg: string) => void }) {
+  const [googleFormUrl, setGoogleFormUrl] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await loadSettings(siteId);
+        setGoogleFormUrl(data.registration_google_form_url || "");
+      } catch { /* ignore */ }
+      setLoading(false);
+    })();
+  }, [siteId]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await upsertSetting(siteId, "registration_google_form_url", googleFormUrl.trim());
+      await touchLastUpdated(siteId);
+      onToast("已儲存報名設定");
+    } catch (e) {
+      console.error("Failed to save registration settings", e);
+      onToast("儲存失敗");
+    }
+    setSaving(false);
+  };
+
+  if (loading) return <div className="text-sm text-muted py-10 text-center">載入中...</div>;
+
+  return (
+    <>
+      <h2 className="text-lg font-semibold text-dark mb-6">報名設定</h2>
+
+      {/* Google Form URL */}
+      <div className="bg-white rounded-xl border border-border p-6 mb-6">
+        <label className="block text-sm font-medium text-dark mb-1">Google 表單連結</label>
+        <p className="text-xs text-muted mb-3">設定後，前台「立即報名」按鈕將會連結至此 Google 表單。若留空，報名按鈕將不會顯示。</p>
+        <input
+          type="url"
+          value={googleFormUrl}
+          onChange={(e) => setGoogleFormUrl(e.target.value)}
+          placeholder="https://docs.google.com/forms/d/e/..."
+          className="w-full px-4 py-2.5 bg-cream/30 border border-border rounded-lg text-sm text-dark placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-gold/30 focus:border-gold"
+        />
+        {googleFormUrl && (
+          <div className="mt-3 flex items-center gap-2">
+            <span className="inline-block w-2 h-2 rounded-full bg-green" />
+            <span className="text-xs text-green font-medium">已設定報名連結</span>
+            <a href={googleFormUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-gold hover:underline ml-auto">
+              預覽表單 ↗
+            </a>
+          </div>
+        )}
+      </div>
+
+      <button
+        onClick={handleSave}
+        disabled={saving}
+        className="px-6 py-2.5 bg-dark text-cream text-sm font-medium rounded-lg hover:bg-dark/80 transition-colors disabled:opacity-50"
+      >
+        {saving ? "儲存中..." : "儲存設定"}
+      </button>
+    </>
+  );
+}
+
 function RegistrationsPanel({ siteId }: { siteId: string }) {
   const [registrations, setRegistrations] = useState<any[]>([]);
 
@@ -2651,6 +2723,7 @@ export default function SiteDashboard({ slugOverride }: { slugOverride?: string 
     programme: "議程管理",
     venues: "場地管理",
     speakers: "講者管理",
+    registration: "報名設定",
     styles: "樣式設定",
     settings: "網站設定",
   };
@@ -2765,6 +2838,7 @@ export default function SiteDashboard({ slugOverride }: { slugOverride?: string 
               {activeTab === "programme" && siteId && <ProgrammePanel siteId={siteId} onToast={setToast} />}
               {activeTab === "venues" && siteId && <VenuesPanel siteId={siteId} onToast={setToast} />}
               {activeTab === "speakers" && siteId && <SpeakersPanel siteId={siteId} onToast={setToast} />}
+              {activeTab === "registration" && siteId && <RegistrationSettingsPanel siteId={siteId} onToast={setToast} />}
               {activeTab === "styles" && <StylesPanel siteSlug={siteSlug} />}
               {activeTab === "settings" && siteId && <SettingsPanel siteId={siteId} siteSlug={siteSlug} onToast={setToast} />}
             </>
