@@ -623,7 +623,7 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
   const [filter, setFilter] = useState("All");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
-  const [form, setForm] = useState({ name: "", nameCn: "", affiliation: "", affiliationZh: "", title: "", titleZh: "", bio: "", status: "draft" });
+  const [form, setForm] = useState({ name: "", nameCn: "", affiliation: "", affiliationZh: "", title: "", titleZh: "", bio: "", status: "pending" });
   const [talkTitles, setTalkTitles] = useState<{ en: string; zh: string }[]>([{ en: "", zh: "" }]);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -635,9 +635,9 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
 
   const fetchSpeakers = useCallback(async () => {
     try {
-      const data = await pb.collection("speakers").getFullList({ filter: `site="${siteId}"`, sort: "sortOrder" });
+      const data = await pb.collection("speakers").getFullList({ filter: `site="${siteId}"` });
       setSpeakers(data);
-    } catch { /* ignore */ }
+    } catch (e) { console.error("Failed to fetch speakers", e); }
     setSpeakersLoading(false);
   }, [siteId]);
 
@@ -649,8 +649,8 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
     }).catch(() => {});
   }, [siteId]);
 
-  const [sortKey, setSortKey] = useState<string>("");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [sortKey, setSortKey] = useState<string>("updated");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const toggleSort = (key: string) => {
     if (sortKey === key) { setSortDir(d => d === "asc" ? "desc" : "asc"); }
     else { setSortKey(key); setSortDir("asc"); }
@@ -658,6 +658,11 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
 
   const filtered = filter === "All" ? speakers : speakers.filter((s) => s.status?.toLowerCase() === filter.toLowerCase());
   const sorted = sortKey ? [...filtered].sort((a, b) => {
+    if (sortKey === "updated") {
+      const tA = new Date(a.last_updated || a.updated || 0).getTime();
+      const tB = new Date(b.last_updated || b.updated || 0).getTime();
+      return sortDir === "asc" ? tA - tB : tB - tA;
+    }
     const valA = (sortKey === "name" ? a.name : sortKey === "affiliation" ? a.affiliation : sortKey === "title" ? (a.title_field || a.title) : a.status) || "";
     const valB = (sortKey === "name" ? b.name : sortKey === "affiliation" ? b.affiliation : sortKey === "title" ? (b.title_field || b.title) : b.status) || "";
     return sortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
@@ -665,7 +670,7 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
 
   const openAdd = () => {
     setEditing(null);
-    setForm({ name: "", nameCn: "", affiliation: "", affiliationZh: "", title: "", titleZh: "", bio: "", status: "draft" });
+    setForm({ name: "", nameCn: "", affiliation: "", affiliationZh: "", title: "", titleZh: "", bio: "", status: "pending" });
     setTalkTitles([{ en: "", zh: "" }]);
     setPhotoFile(null);
     setPhotoPreview(null);
@@ -684,7 +689,7 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
       title: item.title_field || item.title || "",
       titleZh: item.titleZh || "",
       bio: item.bio || "",
-      status: item.status || "draft",
+      status: item.status || "pending",
     });
     // Parse talk titles - stored as JSON array or legacy single string
     try {
@@ -730,6 +735,7 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
       formData.append("talkTitle", JSON.stringify(validTitles));
       formData.append("bio", form.bio);
       formData.append("status", form.status);
+      formData.append("last_updated", new Date().toISOString());
       if (photoFile) formData.append("photo", photoFile);
       if (editing) {
         await pb.collection("speakers").update(editing.id, formData);
@@ -788,7 +794,7 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
 
   return (
     <>
-      {deleting && <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100]"><div className="bg-white rounded-xl px-8 py-6 flex flex-col items-center gap-3 shadow-xl"><div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" /><span className="text-sm font-semibold text-dark">刪除中...</span><span className="text-xs text-muted">可能需要幾秒鐘，請稍候</span></div></div>}
+      {deleting && <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100]"><div className="bg-white rounded-xl px-8 py-6 flex flex-col items-center gap-3 shadow-xl"><div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" /><span className="text-sm font-semibold text-dark">刪除中...</span><span className="text-xs text-muted">刪除過程可能需要一些時間，請耐心等候</span></div></div>}
       {/* See More Toggle */}
       <div className="flex items-center justify-between mb-4 px-4 py-3 bg-white rounded-xl border border-border">
         <div className="flex items-center gap-3">
@@ -802,8 +808,8 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
 
       <div className="flex items-center justify-between mb-6">
         <div className="flex gap-1 border-b border-border">
-          {["All", "Confirmed", "Pending", "Draft"].map((f) => {
-            const filterLabels: Record<string, string> = { All: "全部", Confirmed: "已確認", Pending: "待確認", Draft: "草稿" };
+          {["All", "Confirmed", "Pending"].map((f) => {
+            const filterLabels: Record<string, string> = { All: "全部", Confirmed: "已確認", Pending: "待確認" };
             return (
             <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px ${filter === f ? "border-gold text-gold" : "border-transparent text-muted hover:text-dark"}`}>
               {filterLabels[f]}
@@ -822,7 +828,7 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
               {[
                 { key: "name", label: "姓名" },
                 { key: "affiliation", label: "所屬單位" },
-                { key: "title", label: "職稱 / 論文" },
+                { key: "title", label: "職稱" },
                 { key: "status", label: "狀態" },
               ].map(col => (
                 <th key={col.key} className="px-6 py-3 font-medium cursor-pointer select-none hover:text-dark transition-colors" onClick={() => toggleSort(col.key)}>
@@ -861,17 +867,8 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
                 <td className="px-6 py-4 text-xs">
                   <span className="text-dark font-medium">{s.title_field || s.title}</span>
                   {s.titleZh && <p className="text-muted">{s.titleZh}</p>}
-                  {(() => {
-                    let talks: { en: string; zh: string }[] = [];
-                    try { talks = JSON.parse(s.talkTitle || "[]"); } catch { /* */ }
-                    return talks.filter((t: any) => t.en || t.zh).map((t: any, i: number) => (
-                      <p key={i} className="text-[11px] text-gold mt-0.5 truncate max-w-[280px]" title={t.en || t.zh}>
-                        {t.en || t.zh}
-                      </p>
-                    ));
-                  })()}
                 </td>
-                <td className="px-6 py-4"><StatusBadge status={s.status || "draft"} /></td>
+                <td className="px-6 py-4"><StatusBadge status={s.status || "pending"} /></td>
                 <td className="px-6 py-4">
                   <div className="flex items-center justify-end gap-2">
                     <button onClick={() => openEdit(s)} className="p-1.5 text-muted hover:text-gold rounded-md hover:bg-gold/10"><Pencil className="w-4 h-4" /></button>
@@ -1022,9 +1019,8 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
                 <div>
                   <label className="block text-xs font-medium text-muted mb-1">狀態</label>
                   <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-white">
-                    <option value="draft">草稿</option>
-                    <option value="confirmed">已確認</option>
                     <option value="pending">待確認</option>
+                    <option value="confirmed">已確認</option>
                   </select>
                 </div>
               </div>
@@ -1201,7 +1197,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
 
   const handleQuickCreateSpeaker = async () => {
     try {
-      const newSpeaker = await pb.collection("speakers").create({ site: siteId, name: speakerSearch, status: "confirmed" });
+      const newSpeaker = await pb.collection("speakers").create({ site: siteId, name: speakerSearch, status: "pending", last_updated: new Date().toISOString() });
       setAllSpeakers([...allSpeakers, newSpeaker]);
       addSpeakerToSession(newSpeaker.id);
       onToast?.(`已新增講者「${speakerSearch}」`);
@@ -1401,7 +1397,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
 
   return (
     <>
-      {deleting && <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100]"><div className="bg-white rounded-xl px-8 py-6 flex flex-col items-center gap-3 shadow-xl"><div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" /><span className="text-sm font-semibold text-dark">刪除中...</span><span className="text-xs text-muted">可能需要幾秒鐘，請稍候</span></div></div>}
+      {deleting && <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100]"><div className="bg-white rounded-xl px-8 py-6 flex flex-col items-center gap-3 shadow-xl"><div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" /><span className="text-sm font-semibold text-dark">刪除中...</span><span className="text-xs text-muted">刪除過程可能需要一些時間，請耐心等候</span></div></div>}
       {/* ── Day Management ── */}
       <div className="mb-6 p-5 bg-white rounded-xl border border-border">
         <div className="flex items-center justify-between mb-3">
@@ -1959,7 +1955,7 @@ function VenuesPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: stri
 
   return (
     <>
-      {deleting && <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100]"><div className="bg-white rounded-xl px-8 py-6 flex flex-col items-center gap-3 shadow-xl"><div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" /><span className="text-sm font-semibold text-dark">刪除中...</span><span className="text-xs text-muted">可能需要幾秒鐘，請稍候</span></div></div>}
+      {deleting && <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100]"><div className="bg-white rounded-xl px-8 py-6 flex flex-col items-center gap-3 shadow-xl"><div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" /><span className="text-sm font-semibold text-dark">刪除中...</span><span className="text-xs text-muted">刪除過程可能需要一些時間，請耐心等候</span></div></div>}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-semibold text-dark">場地管理</h2>
         <button onClick={openAdd} className="flex items-center gap-1.5 px-4 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light transition-colors">
@@ -2183,7 +2179,7 @@ function RegistrationsPanel({ siteId, onToast }: { siteId: string; onToast?: (ms
 
   return (
     <>
-      {deleting && <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100]"><div className="bg-white rounded-xl px-8 py-6 flex flex-col items-center gap-3 shadow-xl"><div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" /><span className="text-sm font-semibold text-dark">刪除中...</span><span className="text-xs text-muted">可能需要幾秒鐘，請稍候</span></div></div>}
+      {deleting && <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100]"><div className="bg-white rounded-xl px-8 py-6 flex flex-col items-center gap-3 shadow-xl"><div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" /><span className="text-sm font-semibold text-dark">刪除中...</span><span className="text-xs text-muted">刪除過程可能需要一些時間，請耐心等候</span></div></div>}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-semibold text-dark">報名管理</h2>
         <button className="px-4 py-2 bg-white border border-border text-sm text-dark rounded-lg hover:bg-cream transition-colors">匯出 CSV</button>
@@ -2226,7 +2222,7 @@ function RegistrationsPanel({ siteId, onToast }: { siteId: string; onToast?: (ms
               </tr>
             ))}
             {registrations.length === 0 && (
-              <tr><td colSpan={6} className="px-6 py-8 text-center text-sm text-muted">尚無報名資料</td></tr>
+              <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-muted">尚無報名資料</td></tr>
             )}
           </tbody>
         </table>
@@ -2907,7 +2903,7 @@ function SettingsPanel({ siteId, siteSlug, onToast }: { siteId: string; siteSlug
 
   const handleUnpublish = async () => {
     try {
-      await pb.collection("sites").update(siteId, { status: "draft" });
+      await pb.collection("sites").update(siteId, { status: "pending" });
       setSiteStatus("draft");
       onToast?.("網站已取消發布");
     } catch (e: any) {
