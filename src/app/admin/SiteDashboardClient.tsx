@@ -27,7 +27,7 @@ async function loadSettings(siteId: string): Promise<Record<string, string>> {
 }
 
 async function loadProgrammeData(siteId: string) {
-  const days = await pb.collection("days").getFullList({ filter: `site="${siteId}"`, sort: "dayNumber" });
+  const days = await pb.collection("days").getFullList({ filter: `site="${siteId}"`, sort: "date,dayNumber" });
   const dayIds = days.map(d => d.id);
   let sessions: any[] = [];
   let sessionSpeakerRecords: any[] = [];
@@ -262,9 +262,9 @@ function AppearancePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: 
         await upsertSetting(siteId, pair.key, pair.value);
       }
       touchLastUpdated(siteId);
-      onToast?.("已自動儲存");
+      onToast?.("網站外觀：已自動儲存");
     } catch (e: any) {
-      onToast?.(`自動儲存失敗：${e?.message || "請檢查網路連線"}`);
+      onToast?.(`網站外觀：自動儲存失敗：${e?.message || "請檢查網路連線"}`);
     }
     setSaving(false);
   }, [siteId, favicon, banner, bannerMobile, ogTitle, ogTitleEn, ogDescription, ogDescriptionEn, ogImage, onToast]);
@@ -310,7 +310,8 @@ function AppearancePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: 
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-dark">網站外觀</h2>
-        <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light transition-colors disabled:opacity-50">
+        <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light transition-colors disabled:opacity-50 flex items-center gap-2">
+          {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
           {saving ? "儲存中..." : "儲存變更"}
         </button>
       </div>
@@ -484,9 +485,9 @@ function DescriptionPanel({ siteId, onToast }: { siteId: string; onToast?: (msg:
         await upsertSetting(siteId, pair.key, pair.value);
       }
       touchLastUpdated(siteId);
-      onToast?.("已自動儲存");
+      onToast?.("活動簡介：已自動儲存");
     } catch (e: any) {
-      onToast?.(`自動儲存失敗：${e?.message || "請檢查網路連線"}`);
+      onToast?.(`活動簡介：自動儲存失敗：${e?.message || "請檢查網路連線"}`);
     }
     setSaving(false);
   }, [siteId, onToast]);
@@ -526,7 +527,8 @@ function DescriptionPanel({ siteId, onToast }: { siteId: string; onToast?: (msg:
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-dark">活動簡介</h2>
-        <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light transition-colors disabled:opacity-50">
+        <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light transition-colors disabled:opacity-50 flex items-center gap-2">
+          {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
           {saving ? "儲存中..." : "儲存變更"}
         </button>
       </div>
@@ -724,9 +726,9 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
         await pb.collection("speakers").create(formData);
       }
       setShowForm(false);
-      fetchSpeakers();
       touchLastUpdated(siteId);
       onToast?.(editing ? "儲存成功" : "新增成功");
+      fetchSpeakers();
     } catch (e: any) {
       console.error("Failed to save speaker", e);
       if (e?.data) {
@@ -745,20 +747,23 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
     }
   };
 
+  const [deleting, setDeleting] = useState(false);
   const handleDelete = async (id: string) => {
     if (!confirm("確定刪除？")) return;
+    setDeleting(true);
     try {
-      // Delete related session_speakers first
-      const relatedSS = await pb.collection("session_speakers").getFullList({ filter: `speaker="${id}"` });
+      const relatedSS = await pb.collection("session_speakers").getFullList({ filter: `speaker="${id}"` }).catch(() => []);
       for (const ss of relatedSS) {
-        await pb.collection("session_speakers").delete(ss.id);
+        await pb.collection("session_speakers").delete(ss.id).catch(() => {});
       }
       await pb.collection("speakers").delete(id);
+      setDeleting(false);
       fetchSpeakers();
       onToast?.("刪除成功");
     } catch (e) {
       console.error("Failed to delete speaker", e);
       onToast?.(`刪除失敗：${(e as any)?.message || "請重試"}`);
+      setDeleting(false);
     }
   };
 
@@ -771,6 +776,7 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
 
   return (
     <>
+      {deleting && <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100]"><div className="bg-white rounded-xl px-8 py-6 flex flex-col items-center gap-3 shadow-xl"><div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" /><span className="text-sm font-semibold text-dark">刪除中...</span><span className="text-xs text-muted">可能需要幾秒鐘，請稍候</span></div></div>}
       {/* See More Toggle */}
       <div className="flex items-center justify-between mb-4 px-4 py-3 bg-white rounded-xl border border-border">
         <div className="flex items-center gap-3">
@@ -1024,7 +1030,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
   const [activeDay, setActiveDay] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
-  const [form, setForm] = useState({ sessionType: "keynote", titleZh: "", titleEn: "", subtitleZh: "", subtitleEn: "", startTime: "", duration: 30, venue: "", sortOrder: 0 });
+  const [form, setForm] = useState({ sessionType: "keynote", titleZh: "", titleEn: "", subtitleZh: "", subtitleEn: "", startTime: "", duration: 30, venue: "", sortOrder: 0, groupPhoto: false });
   const [allSpeakers, setAllSpeakers] = useState<any[]>([]);
 
   // Session speakers/papers editing
@@ -1110,36 +1116,43 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
     setShowDayForm(true);
   };
 
+  const [savingDay, setSavingDay] = useState(false);
   const handleSaveDay = async () => {
+    if (savingDay) return;
+    setSavingDay(true);
     try {
       if (editingDay) {
         await pb.collection("days").update(editingDay.id, dayForm);
       } else {
-        await pb.collection("days").create({ site: siteId, dayNumber: days.length + 1, ...dayForm });
+        await pb.collection("days").create({ site: siteId, dayNumber: 0, ...dayForm }); // dayNumber auto-corrected by fetchProgramme
       }
       setShowDayForm(false);
-      fetchProgramme();
       onToast?.(editingDay ? "日程已更新" : "日程已新增");
+      setTimeout(() => fetchProgramme(), 100);
     } catch (e: any) {
       onToast?.(`儲存失敗：${e?.message || "請重試"}`);
+    } finally {
+      setSavingDay(false);
     }
   };
 
+  const [deleting, setDeleting] = useState(false);
   const handleDeleteDay = async (d: any) => {
     if (!confirm(`確定刪除 Day ${d.dayNumber}？所有場次也會一起刪除。`)) return;
+    setDeleting(true);
     try {
-      // Delete all sessions under this day (and their related records)
-      const sessions = await pb.collection("sessions").getFullList({ filter: `day="${d.id}"` });
+      // Delete all sessions under this day (and their related records), ignore already-deleted
+      const sessions = await pb.collection("sessions").getFullList({ filter: `day="${d.id}"` }).catch(() => []);
       for (const s of sessions) {
-        const relatedSpeakers = await pb.collection("session_speakers").getFullList({ filter: `session="${s.id}"` });
+        const relatedSpeakers = await pb.collection("session_speakers").getFullList({ filter: `session="${s.id}"` }).catch(() => []);
         for (const ss of relatedSpeakers) {
-          await pb.collection("session_speakers").delete(ss.id);
+          await pb.collection("session_speakers").delete(ss.id).catch(() => {});
         }
-        const relatedPapers = await pb.collection("papers").getFullList({ filter: `session="${s.id}"` });
+        const relatedPapers = await pb.collection("papers").getFullList({ filter: `session="${s.id}"` }).catch(() => []);
         for (const paper of relatedPapers) {
-          await pb.collection("papers").delete(paper.id);
+          await pb.collection("papers").delete(paper.id).catch(() => {});
         }
-        await pb.collection("sessions").delete(s.id);
+        await pb.collection("sessions").delete(s.id).catch(() => {});
       }
       await pb.collection("days").delete(d.id);
       // Renumber remaining days sequentially (Day 1, 2, 3...)
@@ -1150,10 +1163,12 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
         }
       }
       if (activeDay >= remaining.length) setActiveDay(Math.max(0, remaining.length - 1));
+      setDeleting(false);
       fetchProgramme();
       onToast?.("日程已刪除");
     } catch (e: any) {
       onToast?.(`刪除失敗：${e?.message || "請重試"}`);
+      setDeleting(false);
     }
   };
 
@@ -1195,7 +1210,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
   const openAdd = () => {
     if (!day) return;
     setEditing(null);
-    setForm({ sessionType: "keynote", titleZh: "", titleEn: "", subtitleZh: "", subtitleEn: "", startTime: "", duration: 30, venue: "", sortOrder: (day.sessions?.length || 0) + 1 });
+    setForm({ sessionType: "keynote", titleZh: "", titleEn: "", subtitleZh: "", subtitleEn: "", startTime: "", duration: 30, venue: "", sortOrder: (day.sessions?.length || 0) + 1, groupPhoto: false });
     setSessionModerators([]);
     setSessionSpeakersList([]);
     setSessionDiscussants([]);
@@ -1219,6 +1234,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
       duration: session.duration || 30,
       venue: session.venue || "",
       sortOrder: session.sortOrder || 0,
+      groupPhoto: session.groupPhoto || false,
     });
     // Load session speaker assignments
     const spkrs = session.sessionSpeakers || [];
@@ -1285,6 +1301,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
         duration: form.duration || 0,
         venue: form.venue || "",
         sortOrder: form.sortOrder || 0,
+        groupPhoto: form.groupPhoto,
       };
       let sessionId: string;
       if (editing) {
@@ -1323,9 +1340,9 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
         await pb.collection("session_speakers").create({ session: sessionId, speaker: spkId, role: "discussant" });
       }
       setShowForm(false);
-      fetchProgramme();
       touchLastUpdated(siteId);
       onToast?.(editing ? "儲存成功" : "新增成功");
+      setTimeout(() => fetchProgramme(), 100);
     } catch (e: any) {
       console.error("Failed to save session", e);
       // Parse PocketBase field-level errors and show as validation
@@ -1347,23 +1364,24 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
 
   const handleDelete = async (id: string) => {
     if (!confirm("確定刪除？")) return;
+    setDeleting(true);
     try {
-      // Delete related session_speakers first
-      const relatedSpeakers = await pb.collection("session_speakers").getFullList({ filter: `session="${id}"` });
+      const relatedSpeakers = await pb.collection("session_speakers").getFullList({ filter: `session="${id}"` }).catch(() => []);
       for (const ss of relatedSpeakers) {
-        await pb.collection("session_speakers").delete(ss.id);
+        await pb.collection("session_speakers").delete(ss.id).catch(() => {});
       }
-      // Delete related papers
-      const relatedPapers = await pb.collection("papers").getFullList({ filter: `session="${id}"` });
+      const relatedPapers = await pb.collection("papers").getFullList({ filter: `session="${id}"` }).catch(() => []);
       for (const paper of relatedPapers) {
-        await pb.collection("papers").delete(paper.id);
+        await pb.collection("papers").delete(paper.id).catch(() => {});
       }
       await pb.collection("sessions").delete(id);
+      setDeleting(false);
       fetchProgramme();
       onToast?.("刪除成功");
     } catch (e) {
       console.error("Failed to delete session", e);
       onToast?.(`刪除失敗：${(e as any)?.message || "請重試"}`);
+      setDeleting(false);
     }
   };
 
@@ -1383,6 +1401,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
 
   return (
     <>
+      {deleting && <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100]"><div className="bg-white rounded-xl px-8 py-6 flex flex-col items-center gap-3 shadow-xl"><div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" /><span className="text-sm font-semibold text-dark">刪除中...</span><span className="text-xs text-muted">可能需要幾秒鐘，請稍候</span></div></div>}
       {/* ── Day Management ── */}
       <div className="mb-6 p-5 bg-white rounded-xl border border-border">
         <div className="flex items-center justify-between mb-3">
@@ -1470,8 +1489,11 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
               </div>
             </div>
             <div className="px-6 py-4 border-t border-border flex justify-end gap-3 bg-cream/30">
-              <button onClick={() => setShowDayForm(false)} className="px-4 py-2 text-sm text-muted border border-border rounded-lg hover:bg-cream">取消</button>
-              <button onClick={handleSaveDay} disabled={!dayForm.date} className="px-5 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light disabled:opacity-50">儲存</button>
+              <button onClick={() => setShowDayForm(false)} className="px-4 py-2 text-sm text-muted border border-border rounded-lg hover:bg-cream" disabled={savingDay}>取消</button>
+              <button onClick={handleSaveDay} disabled={!dayForm.date || savingDay} className="px-5 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light disabled:opacity-50 flex items-center gap-2">
+                {savingDay && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                {savingDay ? "儲存中..." : "儲存"}
+              </button>
             </div>
           </div>
         </div>
@@ -1495,6 +1517,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <SessionBadge type={s.type || s.sessionType || ""} label={sessionTypeLabels[s.type || s.sessionType || ""] || s.type || s.sessionType || ""} />
+                    {s.groupPhoto && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gold/10 text-gold border border-gold/20">大合照</span>}
                   </div>
                   <p className="text-sm font-medium text-dark">{s.titleEn || s.titleZh || ""}</p>
                   {s.titleZh && s.titleEn && <p className="text-xs text-muted">{s.titleZh}</p>}
@@ -1571,7 +1594,16 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-muted mb-1">場次類型</label>
-                  <select value={form.sessionType} onChange={(e) => setForm({ ...form, sessionType: e.target.value })} className="w-full px-3 py-2 pr-8 border border-border rounded-lg text-sm bg-white">
+                  <select value={form.sessionType} onChange={(e) => {
+                    const t = e.target.value;
+                    const autoFillZh: Record<string, string> = { registration: "報到", opening: "開幕典禮", photo: "大合照", break: "茶敘", dinner: "晚宴", closing: "閉幕", exhibition: "展覽" };
+                    const autoFillEn: Record<string, string> = { registration: "Registration", opening: "Opening Ceremony", photo: "Group Photo", break: "Break", dinner: "Dinner", closing: "Closing", exhibition: "Exhibition" };
+                    if (autoFillZh[t]) {
+                      setForm({ ...form, sessionType: t, titleZh: autoFillZh[t], titleEn: autoFillEn[t] });
+                    } else {
+                      setForm({ ...form, sessionType: t });
+                    }
+                  }} className="w-full px-3 py-2 pr-8 border border-border rounded-lg text-sm bg-white">
                     <option value="registration">報到</option>
                     <option value="opening">開幕典禮</option>
                     <option value="keynote">專題演講</option>
@@ -1586,28 +1618,21 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-muted mb-1">開始時間 <span className="text-red-500">*</span></label>
-                  <div className={`inline-flex items-center gap-1.5 px-3 py-2 border rounded-lg ${validationErrors.includes("開始時間") ? "border-red-400 bg-red-50" : "border-border"}`}>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={2}
-                      placeholder="HH"
+                  <div className={`inline-flex items-center gap-1 px-3 py-2 border rounded-lg ${validationErrors.includes("開始時間") ? "border-red-400 bg-red-50" : "border-border"}`}>
+                    <select
                       value={form.startTime.split(":")[0] || ""}
                       onChange={(e) => {
-                        const v = e.target.value.replace(/\D/g, "").slice(0, 2);
                         const mm = form.startTime.split(":")[1] || "00";
-                        setForm({ ...form, startTime: v ? `${v}:${mm}` : "" });
+                        setForm({ ...form, startTime: e.target.value ? `${e.target.value}:${mm}` : "" });
                         setValidationErrors(prev => prev.filter(x => x !== "開始時間"));
                       }}
-                      onBlur={(e) => {
-                        const n = parseInt(e.target.value);
-                        if (!isNaN(n) && n >= 0 && n <= 23) {
-                          const mm = form.startTime.split(":")[1] || "00";
-                          setForm({ ...form, startTime: `${String(n).padStart(2, "0")}:${mm}` });
-                        }
-                      }}
-                      className="w-7 bg-transparent text-sm text-center font-semibold text-dark outline-none"
-                    />
+                      className="bg-transparent text-sm font-semibold text-dark outline-none cursor-pointer appearance-none text-center w-10"
+                    >
+                      <option value="">HH</option>
+                      {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0")).map(h => (
+                        <option key={h} value={h}>{h}</option>
+                      ))}
+                    </select>
                     <span className="text-dark font-bold text-base leading-none">:</span>
                     <select
                       value={form.startTime.split(":")[1] || ""}
@@ -1616,7 +1641,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
                         setForm({ ...form, startTime: `${hh}:${e.target.value}` });
                         setValidationErrors(prev => prev.filter(x => x !== "開始時間"));
                       }}
-                      className="bg-transparent text-sm font-semibold text-dark outline-none cursor-pointer"
+                      className="bg-transparent text-sm font-semibold text-dark outline-none cursor-pointer appearance-none text-center w-10"
                     >
                       <option value="">MM</option>
                       {["00","05","10","15","20","25","30","35","40","45","50","55"].map(m => (
@@ -1637,6 +1662,13 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
                 </div>
               </div>
 
+              {/* Group Photo toggle */}
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input type="checkbox" checked={form.groupPhoto} onChange={(e) => setForm({ ...form, groupPhoto: e.target.checked })} className="w-4 h-4 rounded border-border text-gold accent-gold" />
+                <span className="text-xs font-medium text-muted">含大合照 Group Photo</span>
+                {form.groupPhoto && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gold/10 text-gold font-medium">ON</span>}
+              </label>
+
               {/* Row 2: Titles */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -1649,15 +1681,51 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
                 </div>
               </div>
 
-              {/* Row 3: Descriptions */}
+              {/* Row 3: Descriptions with auto-numbering */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-muted mb-1">說明（英文）</label>
-                  <textarea rows={3} value={form.subtitleEn} onChange={(e) => setForm({ ...form, subtitleEn: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                  <textarea rows={3} value={form.subtitleEn} onChange={(e) => setForm({ ...form, subtitleEn: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        const ta = e.currentTarget;
+                        const pos = ta.selectionStart;
+                        const lines = ta.value.substring(0, pos).split("\n");
+                        const lastLine = lines[lines.length - 1];
+                        const match = lastLine.match(/^(\d+)\.\s/);
+                        if (match) {
+                          e.preventDefault();
+                          const nextNum = parseInt(match[1]) + 1;
+                          const insert = `\n${nextNum}. `;
+                          const newVal = ta.value.substring(0, pos) + insert + ta.value.substring(pos);
+                          setForm({ ...form, subtitleEn: newVal });
+                          setTimeout(() => { ta.selectionStart = ta.selectionEnd = pos + insert.length; }, 0);
+                        }
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-muted mb-1">說明（中文）</label>
-                  <textarea rows={3} value={form.subtitleZh} onChange={(e) => setForm({ ...form, subtitleZh: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                  <textarea rows={3} value={form.subtitleZh} onChange={(e) => setForm({ ...form, subtitleZh: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        const ta = e.currentTarget;
+                        const pos = ta.selectionStart;
+                        const lines = ta.value.substring(0, pos).split("\n");
+                        const lastLine = lines[lines.length - 1];
+                        const match = lastLine.match(/^(\d+)\.\s/);
+                        if (match) {
+                          e.preventDefault();
+                          const nextNum = parseInt(match[1]) + 1;
+                          const insert = `\n${nextNum}. `;
+                          const newVal = ta.value.substring(0, pos) + insert + ta.value.substring(pos);
+                          setForm({ ...form, subtitleZh: newVal });
+                          setTimeout(() => { ta.selectionStart = ta.selectionEnd = pos + insert.length; }, 0);
+                        }
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
                 </div>
               </div>
 
@@ -1855,9 +1923,9 @@ function VenuesPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: stri
         await pb.collection("venues").create(formData);
       }
       setShowForm(false);
-      fetchVenues();
       touchLastUpdated(siteId);
       onToast?.(editing ? "儲存成功" : "新增成功");
+      fetchVenues();
     } catch (e: any) {
       console.error("Failed to save venue", e);
       onToast?.(`儲存失敗：${e?.message || "請重試"}`);
@@ -1866,20 +1934,25 @@ function VenuesPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: stri
     }
   };
 
+  const [deleting, setDeleting] = useState(false);
   const handleDelete = async (id: string) => {
     if (!confirm("確定刪除？")) return;
+    setDeleting(true);
     try {
       await pb.collection("venues").delete(id);
+      setDeleting(false);
       fetchVenues();
       onToast?.("刪除成功");
     } catch (e) {
       console.error("Failed to delete venue", e);
-      onToast?.(`儲存失敗：${(e as any)?.message || "請重試"}`);
+      onToast?.(`刪除失敗：${(e as any)?.message || "請重試"}`);
+      setDeleting(false);
     }
   };
 
   return (
     <>
+      {deleting && <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100]"><div className="bg-white rounded-xl px-8 py-6 flex flex-col items-center gap-3 shadow-xl"><div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" /><span className="text-sm font-semibold text-dark">刪除中...</span><span className="text-xs text-muted">可能需要幾秒鐘，請稍候</span></div></div>}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-semibold text-dark">場地管理</h2>
         <button onClick={openAdd} className="flex items-center gap-1.5 px-4 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light transition-colors">
@@ -2055,15 +2128,16 @@ function RegistrationSettingsPanel({ siteId, onToast }: { siteId: string; onToas
       <button
         onClick={handleSave}
         disabled={saving}
-        className="px-6 py-2.5 bg-dark text-cream text-sm font-medium rounded-lg hover:bg-dark/80 transition-colors disabled:opacity-50"
+        className="px-6 py-2.5 bg-dark text-cream text-sm font-medium rounded-lg hover:bg-dark/80 transition-colors disabled:opacity-50 flex items-center gap-2"
       >
+        {saving && <div className="w-4 h-4 border-2 border-cream/30 border-t-cream rounded-full animate-spin" />}
         {saving ? "儲存中..." : "儲存設定"}
       </button>
     </>
   );
 }
 
-function RegistrationsPanel({ siteId }: { siteId: string }) {
+function RegistrationsPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: string) => void }) {
   const [registrations, setRegistrations] = useState<any[]>([]);
 
   const fetchRegistrations = useCallback(async () => {
@@ -2084,18 +2158,25 @@ function RegistrationsPanel({ siteId }: { siteId: string }) {
     }
   };
 
+  const [deleting, setDeleting] = useState(false);
   const handleDelete = async (id: string) => {
     if (!confirm("確定刪除？")) return;
+    setDeleting(true);
     try {
       await pb.collection("registrations").delete(id);
-      fetchRegistrations();
-    } catch (e) {
+      await fetchRegistrations();
+      onToast?.("刪除成功");
+    } catch (e: any) {
       console.error("Failed to delete registration", e);
+      onToast?.(`刪除失敗：${e?.message || "請重試"}`);
+    } finally {
+      setDeleting(false);
     }
   };
 
   return (
     <>
+      {deleting && <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100]"><div className="bg-white rounded-xl px-8 py-6 flex flex-col items-center gap-3 shadow-xl"><div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" /><span className="text-sm font-semibold text-dark">刪除中...</span><span className="text-xs text-muted">可能需要幾秒鐘，請稍候</span></div></div>}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-semibold text-dark">報名管理</h2>
         <button className="px-4 py-2 bg-white border border-border text-sm text-dark rounded-lg hover:bg-cream transition-colors">匯出 CSV</button>
@@ -2328,6 +2409,7 @@ function StylesPanel({ siteSlug }: { siteSlug: string }) {
           disabled={saving || !siteId}
           className="px-4 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light transition-colors disabled:opacity-50"
         >
+          {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
           {saving ? "儲存中..." : "儲存變更"}
         </button>
       </div>
@@ -2534,9 +2616,9 @@ function TourPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: string
       await upsertSetting(siteId, "tour_header", h);
       await upsertSetting(siteId, "tour_header_en", he);
       touchLastUpdated(siteId);
-      onToast?.("已自動儲存");
+      onToast?.("導覽梯次：已自動儲存");
     } catch (e: any) {
-      onToast?.(`自動儲存失敗：${e?.message || "請檢查網路連線"}`);
+      onToast?.(`導覽梯次：自動儲存失敗：${e?.message || "請檢查網路連線"}`);
     }
     setSaving(false);
   }, [siteId, onToast]);
@@ -2575,7 +2657,8 @@ function TourPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: string
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-dark">導覽梯次管理</h2>
-        <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light transition-colors disabled:opacity-50">
+        <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light transition-colors disabled:opacity-50 flex items-center gap-2">
+          {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
           {saving ? "儲存中..." : "儲存變更"}
         </button>
       </div>
@@ -2831,7 +2914,8 @@ function SettingsPanel({ siteId, siteSlug, onToast }: { siteId: string; siteSlug
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-dark">網站設定</h2>
-        <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light transition-colors disabled:opacity-50">
+        <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light transition-colors disabled:opacity-50 flex items-center gap-2">
+          {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
           {saving ? "儲存中..." : "儲存變更"}
         </button>
       </div>
@@ -2976,27 +3060,52 @@ function SettingsPanel({ siteId, siteSlug, onToast }: { siteId: string; siteSlug
    ═══════════════════════════════════════════ */
 
 function Toast({ message, onClose }: { message: string; onClose: () => void }) {
-  const isError = /失敗|錯誤|error/i.test(message);
+  const isError = /失敗|錯誤|error|請檢查/i.test(message);
   const isWarning = /請填寫|尚未|incomplete/i.test(message);
+  const isSuccess = !isError && !isWarning;
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(onClose, isError ? 5000 : isWarning ? 6000 : 3500);
+    requestAnimationFrame(() => setVisible(true));
+    const timer = setTimeout(() => {
+      setVisible(false);
+      setTimeout(onClose, 300);
+    }, 5000);
     return () => clearTimeout(timer);
-  }, [onClose, isWarning]);
+  }, [onClose, isError, isWarning]);
 
-  const bg = isError ? "bg-red-700" : isWarning ? "bg-amber-600" : "bg-dark";
+  const borderColor = isError ? "#dc2626" : isWarning ? "#d97706" : "#22c55e";
+  const bgColor = isError ? "#7f1d1d" : isWarning ? "#78350f" : "#14532d";
+  const iconBg = isError ? "#dc2626" : isWarning ? "#d97706" : "#22c55e";
 
   return (
-    <div className="fixed bottom-6 right-6 z-[200] transition-all duration-300">
-      <div className={`${bg} text-white px-5 py-3 rounded-lg shadow-lg flex items-center gap-2 text-sm max-w-sm`}>
-        {isError ? (
-          <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-        ) : isWarning ? (
-          <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        ) : (
-          <span className="text-green">&#10003;</span>
-        )}
-        {message}
+    <div className={`fixed bottom-6 right-6 z-[200] transition-all duration-300 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+      <style>{`
+        @keyframes toast-border-spin {
+          0% { background-position: 0% 50%; }
+          100% { background-position: 200% 50%; }
+        }
+      `}</style>
+      <div className="relative rounded-xl p-[2px] max-w-md" style={{
+        background: `linear-gradient(90deg, ${borderColor}, transparent, ${borderColor}, transparent, ${borderColor})`,
+        backgroundSize: "200% 100%",
+        animation: "toast-border-spin 2s linear infinite",
+      }}>
+        <div className="rounded-[10px] px-5 py-3.5 flex items-center gap-3 text-sm text-white" style={{ backgroundColor: bgColor }}>
+          <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: iconBg }}>
+            {isError ? (
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+            ) : isWarning ? (
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="8" x2="12" y2="13" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+            ) : (
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
+            )}
+          </div>
+          <div className="flex-1 font-medium">{message}</div>
+          <button onClick={() => { setVisible(false); setTimeout(onClose, 300); }} className="text-white/60 hover:text-white shrink-0 ml-2">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -3009,6 +3118,7 @@ export default function SiteDashboard({ slugOverride }: { slugOverride?: string 
   const [siteId, setSiteId] = useState<string | null>(null);
   const [siteName, setSiteName] = useState("");
   const [toast, setToast] = useState<string | null>(null);
+  const clearToast = useCallback(() => setToast(null), []);
   const [sectionVisibility, setSectionVisibility] = useState<Record<SectionKey, boolean>>({
     description: true,
     tour: true,

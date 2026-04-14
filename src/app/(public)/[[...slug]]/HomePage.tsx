@@ -45,6 +45,7 @@ type SessionItem = {
   venue?: string;
   capacity?: number;
   highlight?: boolean;
+  groupPhoto?: boolean;
 };
 
 /* ─── Scroll Animation Hook ─── */
@@ -191,6 +192,7 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
         venue: s.venue || undefined,
         capacity: s.capacity || undefined,
         highlight: s.type === "keynote",
+        groupPhoto: s.groupPhoto || false,
       }))
   );
 
@@ -544,6 +546,12 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
                       })()}
                       {session.type}
                     </span>
+                    {session.groupPhoto && (
+                      <span className="font-inter text-[11px] font-medium px-2.5 py-1 rounded-full bg-gold/10 text-gold border border-gold/20 flex items-center gap-1">
+                        <Camera className="w-3 h-3" />
+                        {lang === "en" ? "Group Photo" : "大合照"}
+                      </span>
+                    )}
                   </div>
 
                   {session.title && (
