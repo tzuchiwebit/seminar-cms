@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { getSiteBySlug, getSiteDays, getSiteSpeakers, getSiteSettings, getSiteVenues, getSiteExhibitions } from "@/lib/pb-queries";
 import HomePage from "./HomePage";
@@ -25,18 +25,6 @@ function setCache(slug: string, data: any) {
   } catch {}
 }
 
-async function fetchSiteData(slug: string) {
-  const site = await getSiteBySlug(slug);
-  const [days, speakers, settings, venues, exhibitions] = await Promise.all([
-    getSiteDays(site.id),
-    getSiteSpeakers(site.id),
-    getSiteSettings(site.id),
-    getSiteVenues(site.id),
-    getSiteExhibitions(site.id),
-  ]);
-  return { site, days, speakers, settings, venues, exhibitions };
-}
-
 export default function PublicPageClient() {
   const pathname = usePathname();
   const router = useRouter();
@@ -44,29 +32,45 @@ export default function PublicPageClient() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  const fetchAll = useCallback(async (slug: string) => {
+    try {
+      const site = await getSiteBySlug(slug);
+      if (site.status === "draft") {
+        setData({ site, days: [], speakers: [], settings: {}, venues: [], exhibitions: [] });
+        setLoading(false);
+        return;
+      }
+      const settings = await getSiteSettings(site.id);
+      const days = await getSiteDays(site.id);
+      const speakers = await getSiteSpeakers(site.id);
+      const venues = await getSiteVenues(site.id);
+      const exhibitions = await getSiteExhibitions(site.id);
+      const full = { site, days, speakers, settings, venues, exhibitions };
+      setData(full);
+      setCache(slug, full);
+      setLoading(false);
+    } catch (err) {
+      console.error("Failed to load site:", err);
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!slug) {
       router.replace("/symposium");
       return;
     }
 
-    // 1. Try cache first for instant render
+    // Try cache first for instant render
     const cached = getCached(slug);
     if (cached) {
       setData(cached);
       setLoading(false);
     }
 
-    // 2. Fetch fresh data (always, to keep cache updated)
-    fetchSiteData(slug).then((fresh) => {
-      setData(fresh);
-      setCache(slug, fresh);
-      setLoading(false);
-    }).catch((err) => {
-      console.error("Failed to load site:", err);
-      if (!cached) setLoading(false);
-    });
-  }, [slug, router]);
+    // Fetch fresh data
+    fetchAll(slug);
+  }, [slug, router, fetchAll]);
 
   if (!slug || loading) {
     return (

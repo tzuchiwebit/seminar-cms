@@ -177,8 +177,8 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
         badge: getBadge(s.type),
         title: lang === "en" ? (s.titleEn || s.titleZh || undefined) : (s.titleZh || s.titleEn || undefined),
         subtitle: lang === "en" ? (s.subtitleEn || s.subtitleZh || undefined) : (s.subtitleZh || s.subtitleEn || undefined),
-        speakers: s.sessionSpeakers?.filter((ss: any) => ss.role !== "discussant").map((ss: any) => ({
-          name: ss.speaker.name,
+        speakers: s.sessionSpeakers?.filter((ss: any) => ss.role !== "discussant" && ss.speaker).map((ss: any) => ({
+          name: ss.speaker?.name || "",
           role: ss.role === "moderator" ? "Moderator" : undefined,
         })) || undefined,
         papers: s.papers?.length > 0 ? s.papers.map((p: any) => ({
@@ -187,7 +187,7 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
           affiliation: lang === "en" ? (p.speaker?.affiliation || p.speaker?.affiliationZh || "") : (p.speaker?.affiliationZh || p.speaker?.affiliation || ""),
         })) : undefined,
         discussants: s.sessionSpeakers?.filter((ss: any) => ss.role === "discussant").length > 0
-          ? s.sessionSpeakers.filter((ss: any) => ss.role === "discussant").map((ss: any) => ss.speaker.name)
+          ? s.sessionSpeakers.filter((ss: any) => ss.role === "discussant" && ss.speaker).map((ss: any) => ss.speaker?.name || "")
           : undefined,
         venue: s.venue || undefined,
         capacity: s.capacity || undefined,
@@ -253,24 +253,46 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
     { number: "1", label: "沉浸式展覽" },
   ];
 
-  const speakerList = speakers.map((s: any) => ({
-    name: s.name,
-    nameCn: s.nameCn || null,
-    photo: s.photo || null,
-    affiliation: s.affiliation || "",
-    affiliationZh: s.affiliationZh || undefined,
-    title: s.title_field || s.title || "",
-    titleZh: s.titleZh || undefined,
-    bio: s.bio || undefined,
-    topicZh: s.papers?.[0]?.titleEn || s.papers?.[0]?.titleZh || undefined,
-    papers: s.papers?.map((p: any) => p.titleEn || p.titleZh) || [],
-    tags: s.sessionSpeakers?.map((ss: any) => {
-      const dt = new Date(ss.session.day.date);
-      const role = ss.role === "moderator" ? "Moderator" : ss.role === "discussant" ? "Commentator"
-        : (lang === "en" ? (ss.session.titleEn || ss.session.titleZh) : ss.session.titleZh);
-      return `${dt.getMonth() + 1}/${dt.getDate()} · ${role}`;
-    }) || [],
-  }));
+  // Build speaker tags and papers from days data (avoids extra API calls)
+  const speakerSessionMap = new Map<string, { tags: string[]; papers: string[] }>();
+  for (const day of days) {
+    const dt = new Date(day.date);
+    const dateStr = `${dt.getMonth() + 1}/${dt.getDate()}`;
+    for (const session of (day.sessions || [])) {
+      for (const ss of (session.sessionSpeakers || [])) {
+        const spkId = ss.speaker?.id;
+        if (!spkId) continue;
+        if (!speakerSessionMap.has(spkId)) speakerSessionMap.set(spkId, { tags: [], papers: [] });
+        const entry = speakerSessionMap.get(spkId)!;
+        const role = ss.role === "moderator" ? "Moderator" : ss.role === "discussant" ? "Commentator"
+          : (lang === "en" ? (session.titleEn || session.titleZh) : (session.titleZh || session.titleEn));
+        entry.tags.push(`${dateStr} · ${role}`);
+      }
+      for (const p of (session.papers || [])) {
+        const spkId = p.speaker?.id;
+        if (!spkId) continue;
+        if (!speakerSessionMap.has(spkId)) speakerSessionMap.set(spkId, { tags: [], papers: [] });
+        speakerSessionMap.get(spkId)!.papers.push(lang === "en" ? (p.titleEn || p.titleZh) : (p.titleZh || p.titleEn));
+      }
+    }
+  }
+
+  const speakerList = speakers.map((s: any) => {
+    const sessionData = speakerSessionMap.get(s.id) || { tags: [], papers: [] };
+    return {
+      name: s.name,
+      nameCn: s.nameCn || null,
+      photo: s.photo || null,
+      affiliation: s.affiliation || "",
+      affiliationZh: s.affiliationZh || undefined,
+      title: s.title_field || s.title || "",
+      titleZh: s.titleZh || undefined,
+      bio: s.bio || undefined,
+      topicZh: sessionData.papers[0] || undefined,
+      papers: sessionData.papers,
+      tags: sessionData.tags,
+    };
+  });
 
   /* ── Derived state ── */
   const currentDay = dayTabs[activeDay];
