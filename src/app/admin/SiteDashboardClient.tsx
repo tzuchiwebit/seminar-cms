@@ -703,8 +703,8 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
     const errors: string[] = [];
     const needEn = siteLang === "en" || siteLang === "both";
     const needZh = siteLang === "zh" || siteLang === "both";
-    if (needEn && !form.name.trim()) errors.push("name");
-    if (needZh && !form.nameCn.trim()) errors.push("nameCn");
+    // Name EN always required, Name ZH always optional
+    if (!form.name.trim()) errors.push("name");
     if (needEn && !form.affiliation.trim()) errors.push("affiliation");
     if (needZh && !form.affiliationZh.trim()) errors.push("affiliationZh");
     if (needEn && !form.title.trim()) errors.push("title");
@@ -928,18 +928,14 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
                 {/* Name + Affiliation + Title */}
                 <div className="flex-1 space-y-4">
                   <div className="grid grid-cols-2 gap-4">
-                    {(siteLang === "en" || siteLang === "both") && (
                     <div>
                       <label className="block text-xs font-medium text-muted mb-1">姓名（英文） <span className="text-red-500">*</span></label>
                       <input type="text" value={form.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setSpeakerErrors(prev => prev.filter(x => x !== "name")); }} className={`w-full px-3 py-2 border rounded-lg text-sm ${speakerErrors.includes("name") ? "border-red-400 bg-red-50" : "border-border"}`} />
                     </div>
-                    )}
-                    {(siteLang === "zh" || siteLang === "both") && (
                     <div>
-                      <label className="block text-xs font-medium text-muted mb-1">姓名（中文） <span className="text-red-500">*</span></label>
-                      <input type="text" value={form.nameCn} onChange={(e) => { setForm({ ...form, nameCn: e.target.value }); setSpeakerErrors(prev => prev.filter(x => x !== "nameCn")); }} className={`w-full px-3 py-2 border rounded-lg text-sm ${speakerErrors.includes("nameCn") ? "border-red-400 bg-red-50" : "border-border"}`} />
+                      <label className="block text-xs font-medium text-muted mb-1">姓名（中文）</label>
+                      <input type="text" value={form.nameCn} onChange={(e) => setForm({ ...form, nameCn: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
                     </div>
-                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     {(siteLang === "en" || siteLang === "both") && (
