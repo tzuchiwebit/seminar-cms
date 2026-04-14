@@ -547,7 +547,8 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
                       {session.type}
                     </span>
                     {session.groupPhoto && (
-                      <span className="font-inter text-[11px] font-medium px-2.5 py-1 rounded-full bg-gold/10 text-gold border border-gold/20">
+                      <span className="inline-flex items-center gap-1.5 font-inter text-[13px] font-medium px-2 py-0.5 rounded border border-gold text-gold bg-transparent">
+                        <Camera className="w-3.5 h-3.5" />
                         {lang === "en" ? "Group Photo" : "大合照"}
                       </span>
                     )}

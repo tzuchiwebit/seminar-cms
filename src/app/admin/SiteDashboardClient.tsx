@@ -1242,18 +1242,17 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
     setSessionModerators(spkrs.filter((ss: any) => ss.role === "moderator").map((ss: any) => ss.speaker?.id).filter(Boolean));
     setSessionDiscussants(spkrs.filter((ss: any) => ss.role === "discussant").map((ss: any) => ss.speaker?.id).filter(Boolean));
 
-    // Load speakers from session_speakers with role "speaker" AND from papers
+    // Load ALL speakers with role "speaker" from session_speakers
     const ssSpkIds = spkrs.filter((ss: any) => ss.role === "speaker").map((ss: any) => ss.speaker?.id).filter(Boolean);
-    const paperSpkIds = (session.papers || []).map((p: any) => p.speaker?.id).filter(Boolean);
-    // Use paper speakers as the list (one entry per paper)
-    const speakerList = paperSpkIds.length > 0 ? paperSpkIds : ssSpkIds;
-    setSessionSpeakersList(speakerList);
+    setSessionSpeakersList(ssSpkIds);
 
-    // Load paper titles with index-based keys
+    // Load paper titles matched to speaker index
     const ptitles: Record<string, string> = {};
     const ptitlesZh: Record<string, string> = {};
-    paperSpkIds.forEach((spkId: string, i: number) => {
-      const paper = (session.papers || [])[i];
+    const papers = session.papers || [];
+    ssSpkIds.forEach((spkId: string, i: number) => {
+      // Find paper for this speaker
+      const paper = papers.find((p: any) => p.speaker?.id === spkId);
       if (paper) {
         ptitles[`${spkId}_${i}`] = paper.titleEn || "";
         ptitlesZh[`${spkId}_${i}`] = paper.titleZh || "";
@@ -3260,10 +3259,6 @@ export default function SiteDashboard({ slugOverride }: { slugOverride?: string 
             <p className="text-sm text-muted">{siteName || siteSlug} · /{siteSlug}</p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-cream border border-border rounded-lg px-3 py-2">
-              <Search className="w-4 h-4 text-muted" />
-              <input type="text" className="text-sm outline-none bg-transparent w-32" />
-            </div>
           </div>
         </div>
 
