@@ -649,7 +649,19 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
     }).catch(() => {});
   }, [siteId]);
 
+  const [sortKey, setSortKey] = useState<string>("");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const toggleSort = (key: string) => {
+    if (sortKey === key) { setSortDir(d => d === "asc" ? "desc" : "asc"); }
+    else { setSortKey(key); setSortDir("asc"); }
+  };
+
   const filtered = filter === "All" ? speakers : speakers.filter((s) => s.status?.toLowerCase() === filter.toLowerCase());
+  const sorted = sortKey ? [...filtered].sort((a, b) => {
+    const valA = (sortKey === "name" ? a.name : sortKey === "affiliation" ? a.affiliation : sortKey === "title" ? (a.title_field || a.title) : a.status) || "";
+    const valB = (sortKey === "name" ? b.name : sortKey === "affiliation" ? b.affiliation : sortKey === "title" ? (b.title_field || b.title) : b.status) || "";
+    return sortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+  }) : filtered;
 
   const openAdd = () => {
     setEditing(null);
@@ -807,15 +819,27 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
         <table className="w-full">
           <thead>
             <tr className="text-left text-xs text-muted uppercase tracking-wider bg-cream/50">
-              <th className="px-6 py-3 font-medium">姓名</th>
-              <th className="px-6 py-3 font-medium">所屬單位 Affiliation</th>
-              <th className="px-6 py-3 font-medium">職稱 / 論文</th>
-              <th className="px-6 py-3 font-medium">狀態</th>
+              {[
+                { key: "name", label: "姓名" },
+                { key: "affiliation", label: "所屬單位" },
+                { key: "title", label: "職稱 / 論文" },
+                { key: "status", label: "狀態" },
+              ].map(col => (
+                <th key={col.key} className="px-6 py-3 font-medium cursor-pointer select-none hover:text-dark transition-colors" onClick={() => toggleSort(col.key)}>
+                  <span className="flex items-center gap-1">
+                    {col.label}
+                    <span className="inline-flex flex-col text-[8px] leading-none">
+                      <span className={sortKey === col.key && sortDir === "asc" ? "text-gold" : "text-muted/30"}>▲</span>
+                      <span className={sortKey === col.key && sortDir === "desc" ? "text-gold" : "text-muted/30"}>▼</span>
+                    </span>
+                  </span>
+                </th>
+              ))}
               <th className="px-6 py-3 font-medium text-right">操作</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {filtered.map((s: any) => (
+            {sorted.map((s: any) => (
               <tr key={s.id} className="hover:bg-cream/30">
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
@@ -859,7 +883,7 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
             {speakersLoading && (
               <tr><td colSpan={5} className="px-6 py-12 text-center"><div className="flex flex-col items-center gap-3"><div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" /><span className="text-sm text-muted">載入中...</span></div></td></tr>
             )}
-            {!speakersLoading && filtered.length === 0 && (
+            {!speakersLoading && sorted.length === 0 && (
               <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-muted">尚無講者資料</td></tr>
             )}
           </tbody>
