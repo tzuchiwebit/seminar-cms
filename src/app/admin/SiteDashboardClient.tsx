@@ -1092,20 +1092,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
   const fetchProgramme = useCallback(async () => {
     try {
       const data = await loadProgrammeData(siteId);
-      // Auto-renumber days if not sequential (1, 2, 3...)
-      let needsRefetch = false;
-      for (let i = 0; i < data.length; i++) {
-        if ((data[i] as any).dayNumber !== i + 1) {
-          await pb.collection("days").update(data[i].id, { dayNumber: i + 1 });
-          needsRefetch = true;
-        }
-      }
-      if (needsRefetch) {
-        const refreshed = await loadProgrammeData(siteId);
-        setDays(refreshed);
-      } else {
-        setDays(data);
-      }
+      setDays(data); // Already sorted by date from loadProgrammeData
     } catch { /* ignore */ }
     // Also fetch all speakers for assignment
     try {
@@ -1144,15 +1131,11 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
       if (editingDay) {
         await pb.collection("days").update(editingDay.id, dayForm);
       } else {
-        await pb.collection("days").create({ site: siteId, dayNumber: 0, ...dayForm }); // dayNumber auto-corrected by fetchProgramme
+        await pb.collection("days").create({ site: siteId, dayNumber: 1, ...dayForm });
       }
+      setShowDayForm(false);
       onToast?.(editingDay ? "日程已更新" : "日程已新增");
-      // Close popup and refresh data after a tick to avoid React render race
-      requestAnimationFrame(() => {
-        setShowDayForm(false);
-        setSavingDay(false);
-        fetchProgramme();
-      });
+      await fetchProgramme();
     } catch (e: any) {
       onToast?.(`儲存失敗：${e?.message || "請重試"}`);
     } finally {
@@ -1162,7 +1145,8 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
 
   const [deleting, setDeleting] = useState(false);
   const handleDeleteDay = async (d: any) => {
-    if (!confirm(`確定刪除 Day ${d.dayNumber}？所有場次也會一起刪除。`)) return;
+    const dayIndex = days.findIndex((day: any) => day.id === d.id);
+    if (!confirm(`確定刪除 Day ${dayIndex + 1}？所有場次也會一起刪除。`)) return;
     setDeleting(true);
     try {
       // Delete all sessions under this day (and their related records), ignore already-deleted
@@ -1179,21 +1163,12 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
         await pb.collection("sessions").delete(s.id).catch(() => {});
       }
       await pb.collection("days").delete(d.id);
-      // Renumber remaining days
-      try {
-        const remaining = days.filter((day: any) => day.id !== d.id);
-        for (let i = 0; i < remaining.length; i++) {
-          if (remaining[i].dayNumber !== i + 1) {
-            await pb.collection("days").update(remaining[i].id, { dayNumber: i + 1 }).catch(() => {});
-          }
-        }
-        if (activeDay >= remaining.length) setActiveDay(Math.max(0, remaining.length - 1));
-      } catch { /* renumber failed, will be fixed on next load */ }
-      setDeleting(false);
+      if (activeDay >= days.length - 1) setActiveDay(Math.max(0, days.length - 2));
       onToast?.("日程已刪除");
       fetchProgramme();
     } catch (e: any) {
       onToast?.(`刪除失敗：${e?.message || "請重試"}`);
+    } finally {
       setDeleting(false);
     }
   };
@@ -1450,7 +1425,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
           <div className="flex gap-2 flex-wrap">
             {days.map((d: any, i: number) => (
               <button key={d.id || i} onClick={() => setActiveDay(i)} className={`px-4 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeDay === i ? "bg-dark text-cream" : "bg-cream border border-border text-muted hover:text-dark hover:border-dark/20"}`}>
-                <span>Day {d.dayNumber || i + 1}</span>
+                <span>Day {i + 1}</span>
                 {d.date && <span className="ml-1.5 opacity-60">· {new Date(d.date).toLocaleDateString("zh-TW", { month: "numeric", day: "numeric" })}</span>}
               </button>
             ))}
@@ -1463,11 +1438,11 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
         <div className="mb-4 px-5 py-4 bg-white rounded-xl border border-gold/20 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-lg bg-gold/10 flex items-center justify-center shrink-0">
-              <span className="font-inter text-gold font-bold text-sm">{day.dayNumber}</span>
+              <span className="font-inter text-gold font-bold text-sm">{activeDay + 1}</span>
             </div>
             <div>
               <p className="text-sm font-semibold text-dark">
-                {day.titleEn || day.titleZh || `Day ${day.dayNumber}`}
+                {day.titleEn || day.titleZh || `Day ${activeDay + 1}`}
               </p>
               <p className="text-xs text-muted mt-0.5">
                 {day.titleZh && day.titleEn && <span>{day.titleZh} · </span>}
@@ -1589,7 +1564,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
                   )}
 
                   {/* Venue */}
-                  {s.venue && <p className="text-xs text-gold/70 mt-1">{s.venue}</p>}
+                  {s.venue && <p className="text-xs text-gold/70 mt-1 flex items-center gap-1"><MapPin className="w-3 h-3 shrink-0" />{s.venue}</p>}
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0 ml-2">
@@ -1601,7 +1576,14 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
           );
         })}
         {(!day || !day.sessions || day.sessions.length === 0) && (
-          <div className="text-center text-sm text-muted py-8">尚無場次資料</div>
+          programmeLoading ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-3">
+              <div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
+              <span className="text-sm text-muted">載入場次資料中...</span>
+            </div>
+          ) : (
+            <div className="text-center text-sm text-muted py-8">尚無場次資料</div>
+          )
         )}
       </div>
 

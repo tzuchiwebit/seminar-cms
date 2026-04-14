@@ -547,8 +547,7 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
                       {session.type}
                     </span>
                     {session.groupPhoto && (
-                      <span className="font-inter text-[11px] font-medium px-2.5 py-1 rounded-full bg-gold/10 text-gold border border-gold/20 flex items-center gap-1">
-                        <Camera className="w-3 h-3" />
+                      <span className="font-inter text-[11px] font-medium px-2.5 py-1 rounded-full bg-gold/10 text-gold border border-gold/20">
                         {lang === "en" ? "Group Photo" : "大合照"}
                       </span>
                     )}
@@ -567,7 +566,8 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
                   )}
 
                   {session.venue && (
-                    <p className="font-inter text-muted text-[13px]">
+                    <p className="font-inter text-gold/70 text-[12px] flex items-center gap-1 mt-1">
+                      <MapPin className="w-3 h-3 shrink-0" />
                       {session.venue}
                       {session.capacity && ` · ${session.capacity} 位`}
                     </p>
