@@ -263,8 +263,8 @@ function AppearancePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: 
       }
       touchLastUpdated(siteId);
       onToast?.("已自動儲存");
-    } catch {
-      onToast?.("自動儲存失敗");
+    } catch (e: any) {
+      onToast?.(`自動儲存失敗：${e?.message || "請檢查網路連線"}`);
     }
     setSaving(false);
   }, [siteId, favicon, banner, bannerMobile, ogTitle, ogTitleEn, ogDescription, ogDescriptionEn, ogImage, onToast]);
@@ -485,8 +485,8 @@ function DescriptionPanel({ siteId, onToast }: { siteId: string; onToast?: (msg:
       }
       touchLastUpdated(siteId);
       onToast?.("已自動儲存");
-    } catch {
-      onToast?.("自動儲存失敗");
+    } catch (e: any) {
+      onToast?.(`自動儲存失敗：${e?.message || "請檢查網路連線"}`);
     }
     setSaving(false);
   }, [siteId, onToast]);
@@ -629,6 +629,7 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
   const [speakerErrors, setSpeakerErrors] = useState<string[]>([]);
   const [speakersLoading, setSpeakersLoading] = useState(true);
   const [siteLang, setSiteLang] = useState<string>("both");
+  const [saving, setSaving] = useState(false);
 
   const fetchSpeakers = useCallback(async () => {
     try {
@@ -684,6 +685,7 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
   };
 
   const handleSave = async () => {
+    if (saving) return;
     const errors: string[] = [];
     const needEn = siteLang === "en" || siteLang === "both";
     const needZh = siteLang === "zh" || siteLang === "both";
@@ -700,6 +702,7 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
       return;
     }
     setSpeakerErrors([]);
+    setSaving(true);
     try {
       const formData = new FormData();
       formData.append("name", form.name);
@@ -724,9 +727,21 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
       fetchSpeakers();
       touchLastUpdated(siteId);
       onToast?.(editing ? "儲存成功" : "新增成功");
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to save speaker", e);
-      onToast?.("儲存失敗，請重試");
+      if (e?.data) {
+        const fieldErrors = Object.entries(e.data)
+          .filter(([k]) => k !== "code" && k !== "message")
+          .map(([k, v]: any) => v?.message ? `${k}: ${v.message}` : `${k}`);
+        if (fieldErrors.length > 0) {
+          onToast?.(`請檢查：${fieldErrors.join("、")}`);
+          setSaving(false);
+          return;
+        }
+      }
+      onToast?.(`儲存失敗：${e?.message || "請重試"}`);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -743,7 +758,7 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
       onToast?.("刪除成功");
     } catch (e) {
       console.error("Failed to delete speaker", e);
-      onToast?.("刪除失敗，請重試");
+      onToast?.(`刪除失敗：${(e as any)?.message || "請重試"}`);
     }
   };
 
@@ -991,8 +1006,11 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
 
             {/* Footer */}
             <div className="px-8 py-4 border-t border-border flex justify-end gap-3 shrink-0 bg-cream/30">
-              <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-muted border border-border rounded-lg hover:bg-cream">取消</button>
-              <button onClick={handleSave} className="px-5 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light">儲存</button>
+              <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-muted border border-border rounded-lg hover:bg-cream" disabled={saving}>取消</button>
+              <button onClick={handleSave} disabled={saving} className="px-5 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light disabled:opacity-50 flex items-center gap-2">
+                {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                {saving ? "儲存中..." : "儲存"}
+              </button>
             </div>
           </div>
         </div>
@@ -1039,6 +1057,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
   const [programmeLoading, setProgrammeLoading] = useState(true);
   const [siteLang, setSiteLang] = useState<string>("both");
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     loadSettings(siteId).then((s) => setSiteLang(s.site_language || "both"));
@@ -1101,8 +1120,8 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
       setShowDayForm(false);
       fetchProgramme();
       onToast?.(editingDay ? "日程已更新" : "日程已新增");
-    } catch {
-      onToast?.("儲存失敗");
+    } catch (e: any) {
+      onToast?.(`儲存失敗：${e?.message || "請重試"}`);
     }
   };
 
@@ -1133,8 +1152,8 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
       if (activeDay >= remaining.length) setActiveDay(Math.max(0, remaining.length - 1));
       fetchProgramme();
       onToast?.("日程已刪除");
-    } catch {
-      onToast?.("刪除失敗");
+    } catch (e: any) {
+      onToast?.(`刪除失敗：${e?.message || "請重試"}`);
     }
   };
 
@@ -1170,7 +1189,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
       setAllSpeakers([...allSpeakers, newSpeaker]);
       addSpeakerToSession(newSpeaker.id);
       onToast?.(`已新增講者「${speakerSearch}」`);
-    } catch { onToast?.("新增失敗"); }
+    } catch (e: any) { onToast?.(`新增失敗：${e?.message || "請重試"}`); }
   };
 
   const openAdd = () => {
@@ -1229,11 +1248,15 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
   };
 
   const handleSave = async () => {
-    // Validate required fields based on site language
+    if (saving) return;
+    // Validate ALL fields client-side before calling PocketBase
+    const needsTitle = ["keynote", "paper_session", "roundtable"].includes(form.sessionType);
     const errors: string[] = [];
+    if (!form.sessionType) errors.push("場次類型");
     if (!form.startTime.trim()) errors.push("開始時間");
-    if ((siteLang === "zh" || siteLang === "both") && !form.titleZh.trim()) errors.push("標題（中文）");
-    if ((siteLang === "en" || siteLang === "both") && !form.titleEn.trim()) errors.push("標題（英文）");
+    if (needsTitle && (siteLang === "zh" || siteLang === "both") && !form.titleZh.trim()) errors.push("標題（中文）");
+    if (needsTitle && (siteLang === "en" || siteLang === "both") && !form.titleEn.trim()) errors.push("標題（英文）");
+    if (!day?.id) errors.push("日程（請先選擇日程）");
 
     if (errors.length > 0) {
       setValidationErrors(errors);
@@ -1241,18 +1264,27 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
       return;
     }
     setValidationErrors([]);
+    setSaving(true);
 
     try {
+      // Normalize startTime — ensure HH:MM format
+      let normalizedTime = form.startTime.trim();
+      if (normalizedTime && !normalizedTime.includes(":")) {
+        normalizedTime = `${normalizedTime.padStart(2, "0")}:00`;
+      }
+      // Auto-fill empty titles with session type label (PocketBase requires titleZh)
+      const typeLabelsZh: Record<string, string> = { registration: "報到", opening: "開幕典禮", keynote: "專題演講", photo: "大合照", paper_session: "論文發表", roundtable: "圓桌論壇", break: "茶敘", dinner: "晚宴", closing: "閉幕", exhibition: "展覽" };
+      const typeLabelsEn: Record<string, string> = { registration: "Registration", opening: "Opening Ceremony", keynote: "Keynote", photo: "Group Photo", paper_session: "Paper Session", roundtable: "Roundtable", break: "Break", dinner: "Dinner", closing: "Closing", exhibition: "Exhibition" };
       const sessionData = {
         type: form.sessionType,
-        titleZh: form.titleZh,
-        titleEn: form.titleEn,
-        subtitleZh: form.subtitleZh,
-        subtitleEn: form.subtitleEn,
-        startTime: form.startTime,
-        duration: form.duration,
-        venue: form.venue,
-        sortOrder: form.sortOrder,
+        titleZh: form.titleZh.trim() || typeLabelsZh[form.sessionType] || form.sessionType,
+        titleEn: form.titleEn.trim() || typeLabelsEn[form.sessionType] || form.sessionType,
+        subtitleZh: form.subtitleZh || "",
+        subtitleEn: form.subtitleEn || "",
+        startTime: normalizedTime,
+        duration: form.duration || 0,
+        venue: form.venue || "",
+        sortOrder: form.sortOrder || 0,
       };
       let sessionId: string;
       if (editing) {
@@ -1294,9 +1326,22 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
       fetchProgramme();
       touchLastUpdated(siteId);
       onToast?.(editing ? "儲存成功" : "新增成功");
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to save session", e);
-      onToast?.("儲存失敗，請重試");
+      // Parse PocketBase field-level errors and show as validation
+      if (e?.data) {
+        const fieldErrors = Object.entries(e.data)
+          .filter(([k]) => k !== "code" && k !== "message")
+          .map(([k, v]: any) => v?.message ? `${k}: ${v.message}` : `${k}`);
+        if (fieldErrors.length > 0) {
+          onToast?.(`請檢查：${fieldErrors.join("、")}`);
+          setSaving(false);
+          return; // Form stays open, data intact
+        }
+      }
+      onToast?.(`儲存失敗：${e?.message || "請重試"}`);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -1318,7 +1363,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
       onToast?.("刪除成功");
     } catch (e) {
       console.error("Failed to delete session", e);
-      onToast?.("刪除失敗，請重試");
+      onToast?.(`刪除失敗：${(e as any)?.message || "請重試"}`);
     }
   };
 
@@ -1330,7 +1375,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
     paper_session: "論文發表",
     paper: "論文發表",
     roundtable: "圓桌論壇",
-    break: "休息",
+    break: "茶敘",
     dinner: "晚宴",
     closing: "閉幕",
     exhibition: "展覽",
@@ -1533,7 +1578,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
                     <option value="photo">大合照</option>
                     <option value="paper_session">論文發表</option>
                     <option value="roundtable">圓桌論壇</option>
-                    <option value="break">休息</option>
+                    <option value="break">茶敘</option>
                     <option value="dinner">晚宴</option>
                     <option value="closing">閉幕</option>
                     <option value="exhibition">展覽</option>
@@ -1541,7 +1586,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-muted mb-1">開始時間 <span className="text-red-500">*</span></label>
-                  <div className={`flex items-center gap-1 px-3 py-2 border rounded-lg ${validationErrors.includes("開始時間") ? "border-red-400 bg-red-50" : "border-border"}`}>
+                  <div className={`inline-flex items-center gap-1.5 px-3 py-2 border rounded-lg ${validationErrors.includes("開始時間") ? "border-red-400 bg-red-50" : "border-border"}`}>
                     <input
                       type="text"
                       inputMode="numeric"
@@ -1561,9 +1606,9 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
                           setForm({ ...form, startTime: `${String(n).padStart(2, "0")}:${mm}` });
                         }
                       }}
-                      className="w-8 bg-transparent text-sm text-center font-medium text-dark outline-none"
+                      className="w-7 bg-transparent text-sm text-center font-semibold text-dark outline-none"
                     />
-                    <span className="text-dark font-bold">:</span>
+                    <span className="text-dark font-bold text-base leading-none">:</span>
                     <select
                       value={form.startTime.split(":")[1] || ""}
                       onChange={(e) => {
@@ -1571,9 +1616,9 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
                         setForm({ ...form, startTime: `${hh}:${e.target.value}` });
                         setValidationErrors(prev => prev.filter(x => x !== "開始時間"));
                       }}
-                      className="bg-transparent text-sm font-medium text-dark outline-none cursor-pointer"
+                      className="bg-transparent text-sm font-semibold text-dark outline-none cursor-pointer"
                     >
-                      <option value="">--</option>
+                      <option value="">MM</option>
                       {["00","05","10","15","20","25","30","35","40","45","50","55"].map(m => (
                         <option key={m} value={m}>{m}</option>
                       ))}
@@ -1595,11 +1640,11 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
               {/* Row 2: Titles */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-muted mb-1">標題（英文）{(siteLang === "en" || siteLang === "both") && <span className="text-red-500">*</span>}</label>
+                  <label className="block text-xs font-medium text-muted mb-1">標題（英文）{["keynote","paper_session","roundtable"].includes(form.sessionType) && (siteLang === "en" || siteLang === "both") && <span className="text-red-500">*</span>}</label>
                   <input type="text" value={form.titleEn} onChange={(e) => { setForm({ ...form, titleEn: e.target.value }); setValidationErrors(prev => prev.filter(e => e !== "標題（英文）")); }} className={`w-full px-3 py-2 border rounded-lg text-sm ${validationErrors.includes("標題（英文）") ? "border-red-400 bg-red-50" : "border-border"}`} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-muted mb-1">標題（中文）{(siteLang === "zh" || siteLang === "both") && <span className="text-red-500">*</span>}</label>
+                  <label className="block text-xs font-medium text-muted mb-1">標題（中文）{["keynote","paper_session","roundtable"].includes(form.sessionType) && (siteLang === "zh" || siteLang === "both") && <span className="text-red-500">*</span>}</label>
                   <input type="text" value={form.titleZh} onChange={(e) => { setForm({ ...form, titleZh: e.target.value }); setValidationErrors(prev => prev.filter(e => e !== "標題（中文）")); }} className={`w-full px-3 py-2 border rounded-lg text-sm ${validationErrors.includes("標題（中文）") ? "border-red-400 bg-red-50" : "border-border"}`} />
                 </div>
               </div>
@@ -1724,8 +1769,11 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
 
             {/* Footer */}
             <div className="px-8 py-4 border-t border-border flex justify-end gap-3 shrink-0 bg-cream/30">
-              <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-muted border border-border rounded-lg hover:bg-cream">取消</button>
-              <button onClick={handleSave} className="px-5 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light">儲存</button>
+              <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-muted border border-border rounded-lg hover:bg-cream" disabled={saving}>取消</button>
+              <button onClick={handleSave} disabled={saving} className="px-5 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light disabled:opacity-50 flex items-center gap-2">
+                {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                {saving ? "儲存中..." : "儲存"}
+              </button>
             </div>
           </div>
         </div>
@@ -1743,6 +1791,7 @@ function VenuesPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: stri
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [venuesLoading, setVenuesLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const fetchVenues = useCallback(async () => {
     try {
@@ -1787,6 +1836,8 @@ function VenuesPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: stri
   };
 
   const handleSave = async () => {
+    if (saving) return;
+    setSaving(true);
     try {
       const formData = new FormData();
       formData.append("name", form.name);
@@ -1810,6 +1861,8 @@ function VenuesPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: stri
     } catch (e: any) {
       console.error("Failed to save venue", e);
       onToast?.(`儲存失敗：${e?.message || "請重試"}`);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -1821,7 +1874,7 @@ function VenuesPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: stri
       onToast?.("刪除成功");
     } catch (e) {
       console.error("Failed to delete venue", e);
-      onToast?.("儲存失敗，請重試");
+      onToast?.(`儲存失敗：${(e as any)?.message || "請重試"}`);
     }
   };
 
@@ -1926,8 +1979,11 @@ function VenuesPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: stri
               <input type="text" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
             </div>
             <div className="flex justify-end gap-3">
-              <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-muted">取消</button>
-              <button onClick={handleSave} className="px-4 py-2 bg-gold text-white text-sm rounded-lg">儲存</button>
+              <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-muted" disabled={saving}>取消</button>
+              <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-gold text-white text-sm rounded-lg disabled:opacity-50 flex items-center gap-2">
+                {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                {saving ? "儲存中..." : "儲存"}
+              </button>
             </div>
           </div>
         </div>
@@ -1963,7 +2019,7 @@ function RegistrationSettingsPanel({ siteId, onToast }: { siteId: string; onToas
       onToast("已儲存報名設定");
     } catch (e) {
       console.error("Failed to save registration settings", e);
-      onToast("儲存失敗");
+      onToast(`儲存失敗：${(e as any)?.message || "請重試"}`);
     }
     setSaving(false);
   };
@@ -2479,8 +2535,8 @@ function TourPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: string
       await upsertSetting(siteId, "tour_header_en", he);
       touchLastUpdated(siteId);
       onToast?.("已自動儲存");
-    } catch {
-      onToast?.("自動儲存失敗");
+    } catch (e: any) {
+      onToast?.(`自動儲存失敗：${e?.message || "請檢查網路連線"}`);
     }
     setSaving(false);
   }, [siteId, onToast]);
@@ -2642,7 +2698,7 @@ function SettingsPanel({ siteId, siteSlug, onToast }: { siteId: string; siteSlug
       onToast?.("儲存成功");
     } catch (e) {
       console.error("Failed to save settings", e);
-      onToast?.("儲存失敗，請重試");
+      onToast?.(`儲存失敗：${(e as any)?.message || "請重試"}`);
     }
     setSaving(false);
   };
@@ -2764,8 +2820,8 @@ function SettingsPanel({ siteId, siteSlug, onToast }: { siteId: string; siteSlug
       await pb.collection("sites").update(siteId, { status: "draft" });
       setSiteStatus("draft");
       onToast?.("網站已取消發布");
-    } catch {
-      onToast?.("操作失敗");
+    } catch (e: any) {
+      onToast?.(`操作失敗：${e?.message || "請重試"}`);
     }
   };
 

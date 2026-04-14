@@ -115,7 +115,7 @@ function getBadge(type: string): "gold" | "green" | "muted" {
 function getTypeLabel(type: string, titleZh: string, lang: "zh" | "en" = "zh"): string {
   const labelsZh: Record<string, string> = {
     registration: "報到", opening: "開幕典禮", keynote: "專題演講",
-    paper_session: "論文發表", roundtable: "圓桌論壇", break: "休息",
+    paper_session: "論文發表", roundtable: "圓桌論壇", break: "茶敘",
     dinner: "晚宴", closing: "閉幕", photo: "大合照", exhibition: "展覽",
   };
   const labelsEn: Record<string, string> = {
@@ -164,7 +164,6 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
 
   const daySessions: SessionItem[][] = days.map((day) =>
     day.sessions
-      .filter((s: any) => s.type !== "break")
       .map((s: any) => ({
         time: s.startTime.replace(/^0/, "").replace(/^(\d{1,2}):(\d{2})$/, (_: string, h: string, m: string) => {
           const hour = parseInt(h);
