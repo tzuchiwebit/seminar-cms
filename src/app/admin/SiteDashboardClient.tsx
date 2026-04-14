@@ -1146,9 +1146,13 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
       } else {
         await pb.collection("days").create({ site: siteId, dayNumber: 0, ...dayForm }); // dayNumber auto-corrected by fetchProgramme
       }
-      setShowDayForm(false);
       onToast?.(editingDay ? "日程已更新" : "日程已新增");
-      setTimeout(() => fetchProgramme(), 100);
+      // Close popup and refresh data after a tick to avoid React render race
+      requestAnimationFrame(() => {
+        setShowDayForm(false);
+        setSavingDay(false);
+        fetchProgramme();
+      });
     } catch (e: any) {
       onToast?.(`儲存失敗：${e?.message || "請重試"}`);
     } finally {
@@ -1175,17 +1179,19 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
         await pb.collection("sessions").delete(s.id).catch(() => {});
       }
       await pb.collection("days").delete(d.id);
-      // Renumber remaining days sequentially (Day 1, 2, 3...)
-      const remaining = days.filter((day: any) => day.id !== d.id);
-      for (let i = 0; i < remaining.length; i++) {
-        if (remaining[i].dayNumber !== i + 1) {
-          await pb.collection("days").update(remaining[i].id, { dayNumber: i + 1 });
+      // Renumber remaining days
+      try {
+        const remaining = days.filter((day: any) => day.id !== d.id);
+        for (let i = 0; i < remaining.length; i++) {
+          if (remaining[i].dayNumber !== i + 1) {
+            await pb.collection("days").update(remaining[i].id, { dayNumber: i + 1 }).catch(() => {});
+          }
         }
-      }
-      if (activeDay >= remaining.length) setActiveDay(Math.max(0, remaining.length - 1));
+        if (activeDay >= remaining.length) setActiveDay(Math.max(0, remaining.length - 1));
+      } catch { /* renumber failed, will be fixed on next load */ }
       setDeleting(false);
-      fetchProgramme();
       onToast?.("日程已刪除");
+      fetchProgramme();
     } catch (e: any) {
       onToast?.(`刪除失敗：${e?.message || "請重試"}`);
       setDeleting(false);
@@ -3099,7 +3105,7 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
   const iconBg = isError ? "#dc2626" : isWarning ? "#d97706" : "#22c55e";
 
   return (
-    <div className={`fixed bottom-6 right-6 z-[200] transition-all duration-300 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+    <div className={`fixed bottom-6 right-6 z-[200] transition-all duration-300 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"}`}>
       <style>{`
         @keyframes toast-border-spin {
           0% { background-position: 0% 50%; }

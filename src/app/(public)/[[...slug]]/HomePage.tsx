@@ -808,12 +808,11 @@ function VenueLocation({ venue, index, lang }: { venue: any; index: number; lang
           href={venue.mapUrl || `https://maps.google.com/?q=${encodeURIComponent(venue.address)}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center mt-1 gap-2 group"
+          className="flex items-center mt-2 gap-1.5 group px-3 py-1.5 rounded-lg border border-gold/20 hover:border-gold/40 hover:bg-gold/5 transition-all"
         >
-          <MapPin className="w-4 h-4 text-gold" />
-          <span className="font-sans text-gold text-[13px] leading-4 group-hover:underline">
-            {venue.address || (lang === "en" ? (venue.name || venue.nameZh) : (venue.nameZh || venue.name))}
-          </span>
+          <MapPin className="w-3.5 h-3.5 text-gold shrink-0" />
+          <span className="font-sans text-gold text-[13px] group-hover:underline flex-1">{venue.address || (lang === "en" ? (venue.name || venue.nameZh) : (venue.nameZh || venue.name))}</span>
+          <span className="text-[10px] text-gold/50 font-inter shrink-0">↗</span>
         </a>
       )}
     </div>

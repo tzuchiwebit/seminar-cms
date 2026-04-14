@@ -16,33 +16,48 @@ export async function getSiteSettings(siteId: string) {
 export async function getSiteDays(siteId: string) {
   const days = await pb.collection("days").getFullList({
     filter: `site="${siteId}"`,
-    sort: "dayNumber",
+    sort: "date,dayNumber",
   });
 
   const dayIds = days.map((d) => d.id);
   if (dayIds.length === 0) return [];
 
-  const sessions = await pb.collection("sessions").getFullList({
-    filter: dayIds.map((id) => `day="${id}"`).join(" || "),
-    sort: "sortOrder",
-  });
-
+  // Fetch sessions for all days in parallel
+  const sessionBatches = await Promise.all(
+    dayIds.map((dayId) =>
+      pb.collection("sessions").getFullList({ filter: `day="${dayId}"`, sort: "sortOrder" })
+    )
+  );
+  const sessions = sessionBatches.flat();
   const sessionIds = sessions.map((s) => s.id);
 
   let sessionSpeakers: any[] = [];
   let papers: any[] = [];
 
   if (sessionIds.length > 0) {
-    const ssFilter = sessionIds.map((id) => `session="${id}"`).join(" || ");
-    sessionSpeakers = await pb.collection("session_speakers").getFullList({
-      filter: ssFilter,
-      expand: "speaker",
-    });
-    papers = await pb.collection("papers").getFullList({
-      filter: ssFilter,
-      sort: "sortOrder",
-      expand: "speaker",
-    });
+    // Batch in chunks of 20, run all chunks in parallel
+    const chunkSize = 20;
+    const chunks: string[][] = [];
+    for (let i = 0; i < sessionIds.length; i += chunkSize) {
+      chunks.push(sessionIds.slice(i, i + chunkSize));
+    }
+    const [ssBatches, pBatches] = await Promise.all([
+      Promise.all(chunks.map((chunk) =>
+        pb.collection("session_speakers").getFullList({
+          filter: chunk.map((id) => `session="${id}"`).join(" || "),
+          expand: "speaker",
+        })
+      )),
+      Promise.all(chunks.map((chunk) =>
+        pb.collection("papers").getFullList({
+          filter: chunk.map((id) => `session="${id}"`).join(" || "),
+          sort: "sortOrder",
+          expand: "speaker",
+        })
+      )),
+    ]);
+    sessionSpeakers = ssBatches.flat();
+    papers = pBatches.flat();
   }
 
   return days.map((day) => ({
@@ -76,14 +91,27 @@ export async function getSiteSpeakers(siteId: string) {
   const speakerIds = speakers.map((s) => s.id);
   if (speakerIds.length === 0) return speakers;
 
-  const ssFilter = speakerIds.map((id) => `speaker="${id}"`).join(" || ");
-  const sessionSpeakers = await pb.collection("session_speakers").getFullList({
-    filter: ssFilter,
-    expand: "session,session.day",
-  });
-  const papers = await pb.collection("papers").getFullList({
-    filter: speakerIds.map((id) => `speaker="${id}"`).join(" || "),
-  });
+  // Batch in chunks of 20, run in parallel
+  const chunkSize = 20;
+  const chunks: string[][] = [];
+  for (let i = 0; i < speakerIds.length; i += chunkSize) {
+    chunks.push(speakerIds.slice(i, i + chunkSize));
+  }
+  const [ssBatches, pBatches] = await Promise.all([
+    Promise.all(chunks.map((chunk) =>
+      pb.collection("session_speakers").getFullList({
+        filter: chunk.map((id) => `speaker="${id}"`).join(" || "),
+        expand: "session,session.day",
+      })
+    )),
+    Promise.all(chunks.map((chunk) =>
+      pb.collection("papers").getFullList({
+        filter: chunk.map((id) => `speaker="${id}"`).join(" || "),
+      })
+    )),
+  ]);
+  const sessionSpeakers = ssBatches.flat();
+  const papers = pBatches.flat();
 
   return speakers.map((spk) => ({
     ...spk,
