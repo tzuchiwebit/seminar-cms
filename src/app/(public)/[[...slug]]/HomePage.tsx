@@ -93,6 +93,24 @@ const fadeUp = (visible: boolean, delay = 0) =>
       : "opacity-0 translate-y-8 duration-700"
   }`;
 
+/* ─── Helpers ─── */
+
+function Linkify({ children, className }: { children: string; className?: string }) {
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = children.split(urlRegex);
+  return (
+    <span className={className}>
+      {parts.map((part, i) =>
+        urlRegex.test(part) ? (
+          <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-gold underline underline-offset-2 hover:text-gold-light break-all">{part}</a>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </span>
+  );
+}
+
 /* ─── Props ─── */
 
 type HomePageProps = {
@@ -363,7 +381,7 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
               <p className="font-inter text-gold text-[15px] font-semibold tracking-[0.2em] uppercase mb-4">
                 {lang === "en" ? "ABOUT" : "關於"}
               </p>
-              <h2 className="font-serif text-dark text-[30px] md:text-[36px] lg:text-[42px] font-bold leading-[1.1] tracking-[-0.02em]">
+              <h2 className="font-serif text-dark text-[36px] md:text-[48px] lg:text-[56px] font-bold leading-[1.1] tracking-[-0.02em]">
                 {lang === "en" ? <>Event<br />Overview</> : <>活動<br />簡介</>}
               </h2>
               <div className="w-12 h-[2px] bg-gold mt-5" />
@@ -419,22 +437,22 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
             }}
           />
         </div>
-        <div className="flex flex-col lg:flex-row w-full py-10 md:py-16 lg:py-24 px-6 md:px-12 lg:px-20 gap-6 md:gap-10 lg:gap-20">
-          <div className="flex flex-col w-full lg:w-[400px] shrink-0 gap-3 md:gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-stretch w-full py-10 md:py-16 lg:py-24 px-6 md:px-12 lg:px-20 gap-6 md:gap-10 lg:gap-20">
+          <div className="flex flex-col w-full lg:w-[560px] shrink-0 gap-3 md:gap-4">
             <p className="font-inter text-gold text-[13px] md:text-[16px] font-semibold tracking-[0.2em] uppercase leading-4">
               {lang === "en" ? "EXHIBITION TOUR" : "展覽參觀"}
             </p>
-            <h2 className="font-serif text-dark text-[40px] md:text-[60px] lg:text-[100px] font-black leading-[1.1] tracking-[-0.02em]">
+            <h2 className="font-serif text-dark text-[32px] md:text-[44px] lg:text-[64px] font-black leading-[1.1] tracking-[-0.02em]">
               {lang === "en" ? <>Tour<br />Groups</> : <>導覽<br />梯次</>}
             </h2>
             <div className="w-12 h-0.5 bg-gold" />
             <p className="font-sans text-muted text-[14px] md:text-[16px] leading-[24px] md:leading-[26px] whitespace-pre-line">
-              {lang === "en"
+              <Linkify>{lang === "en"
                 ? (settings.tour_header_en || settings.tour_header || "75 minutes per group\n3 groups, 20 people each")
-                : (settings.tour_header || "每梯次七十五分鐘\n三梯次，每梯次二十人")}
+                : (settings.tour_header || "每梯次七十五分鐘\n三梯次，每梯次二十人")}</Linkify>
             </p>
           </div>
-          <div className="flex flex-col grow">
+          <div className="flex flex-col grow justify-center">
             {(() => {
               const defaultTours = [
                 { number: "01", title: "慈濟台灣與美國志工", sub: "二十人一梯次，75 分鐘", tag: "中文導覽" },
@@ -449,20 +467,18 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
                 } catch { /* use defaults */ }
               }
               return tours;
-            })().map((tour: any, i: number) => (
-              <div key={tour.number} className={`flex items-start md:items-center py-5 md:py-8 gap-3 md:gap-6 ${i < 2 ? "border-b border-border" : ""}`}>
-                <span className="font-inter text-[#D4B85A] text-[32px] md:text-[48px] lg:text-[64px] font-extralight leading-none w-[44px] md:w-[70px] lg:w-[100px] shrink-0">{tour.number}</span>
-                <div className="flex flex-col grow gap-1 md:gap-1.5 min-w-0">
-                  <span className="font-serif text-dark text-[15px] md:text-[20px] lg:text-[24px] font-bold leading-snug">{lang === "en" ? (tour.titleEn || tour.title) : tour.title}</span>
-                  <span className="font-sans text-muted text-[12px] md:text-[16px] leading-[18px]">{lang === "en" ? (tour.subEn || tour.sub) : tour.sub}</span>
-                  {/* Tag inline on mobile */}
-                  <span className="inline-flex self-start md:hidden mt-1 rounded-[20px] py-1 px-2.5 bg-gold/10 border border-gold/25">
-                    <span className="font-sans text-gold text-[11px] tracking-[0.08em] font-medium leading-4 whitespace-nowrap">{lang === "en" ? (tour.tagEn || tour.tag) : tour.tag}</span>
-                  </span>
+            })().map((tour: any, i: number, arr: any[]) => (
+              <div key={tour.number} className={`flex items-center py-4 md:py-6 gap-3 md:gap-4 ${i < arr.length - 1 ? "border-b border-border" : ""}`}>
+                <span className="font-inter text-[#D4B85A] text-[36px] md:text-[48px] lg:text-[64px] font-extralight leading-none w-[48px] md:w-[70px] lg:w-[90px] shrink-0 text-center self-start">{tour.number}</span>
+                <div className="flex flex-col grow gap-1 min-w-0">
+                  <span className="font-serif text-dark text-[13px] md:text-[16px] lg:text-[18px] font-bold leading-snug">{lang === "en" ? (tour.titleEn || tour.title) : tour.title}</span>
+                  <span className="font-sans text-muted text-[11px] md:text-[13px] leading-[18px]">{lang === "en" ? (tour.subEn || tour.sub) : tour.sub}</span>
+                  <div className="flex justify-end mt-1">
+                    <span className="rounded-[20px] py-0.5 px-2.5 md:py-1 md:px-3 bg-gold/10 border border-gold/25">
+                      <span className="font-sans text-gold text-[10px] md:text-[12px] tracking-[0.08em] font-medium leading-4 whitespace-nowrap">{lang === "en" ? (tour.tagEn || tour.tag) : tour.tag}</span>
+                    </span>
+                  </div>
                 </div>
-                <span className="hidden md:inline-flex shrink-0 rounded-[20px] py-2 px-4 lg:px-5 bg-gold/10 border border-gold/25">
-                  <span className="font-sans text-gold text-[14px] lg:text-[16px] tracking-[0.08em] font-medium leading-4 whitespace-nowrap">{lang === "en" ? (tour.tagEn || tour.tag) : tour.tag}</span>
-                </span>
               </div>
             ))}
           </div>

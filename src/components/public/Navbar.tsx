@@ -11,17 +11,15 @@ export default function Navbar({ slug, lang, settings }: { slug: string; lang: "
     lang === "zh"
       ? [
           { href: `${base}#description`, label: "關於", section: "description" },
-          { href: `${base}#exhibition`, label: "展覽", section: "exhibition" },
+          { href: `${base}#tour`, label: "展覽", section: "tour" },
           { href: `${base}#programme`, label: "議程", section: "programme" },
-          { href: `${base}#tour`, label: "導覽", section: "tour" },
           { href: `${base}#venue`, label: "地點", section: "venues" },
           { href: `${base}#speakers`, label: "講者", section: "speakers" },
         ]
       : [
-          { href: `${base}#about`, label: "About", section: "description" },
-          { href: `${base}#exhibition`, label: "Exhibition", section: "exhibition" },
+          { href: `${base}#description`, label: "About", section: "description" },
+          { href: `${base}#tour`, label: "Exhibition", section: "tour" },
           { href: `${base}#programme`, label: "Programme", section: "programme" },
-          { href: `${base}#tour`, label: "Tour", section: "tour" },
           { href: `${base}#venue`, label: "Venue", section: "venues" },
           { href: `${base}#speakers`, label: "Speakers", section: "speakers" },
         ];
