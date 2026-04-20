@@ -1,4 +1,5 @@
 import PocketBase from "pocketbase";
+import { fetchSiteDataForBuild } from "@/lib/pb-server";
 import PublicPageClient from "./PublicPageClient";
 
 export async function generateStaticParams() {
@@ -16,6 +17,16 @@ export async function generateStaticParams() {
   }
 }
 
-export default function Page() {
-  return <PublicPageClient />;
+export default async function Page({ params }: { params: Promise<{ slug?: string[] }> }) {
+  const { slug } = await params;
+  const siteSlug = slug?.[0] || "symposium";
+
+  let preloadedData = null;
+  try {
+    preloadedData = await fetchSiteDataForBuild(siteSlug);
+  } catch (e) {
+    console.error("Failed to pre-fetch site data:", e);
+  }
+
+  return <PublicPageClient preloadedData={preloadedData} />;
 }

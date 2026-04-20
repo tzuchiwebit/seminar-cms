@@ -5,32 +5,14 @@ import { usePathname, useRouter } from "next/navigation";
 import { getSiteBySlug, getSiteDays, getSiteSpeakers, getSiteSettings, getSiteVenues, getSiteExhibitions } from "@/lib/pb-queries";
 import HomePage from "./HomePage";
 
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-function getCached(slug: string) {
-  try {
-    const raw = localStorage.getItem(`site_${slug}`);
-    if (!raw) return null;
-    const { data, ts } = JSON.parse(raw);
-    if (Date.now() - ts > CACHE_TTL) return null;
-    return data;
-  } catch {
-    return null;
-  }
-}
-
-function setCache(slug: string, data: any) {
-  try {
-    localStorage.setItem(`site_${slug}`, JSON.stringify({ data, ts: Date.now() }));
-  } catch {}
-}
-
-export default function PublicPageClient() {
+export default function PublicPageClient({ preloadedData }: { preloadedData?: any }) {
   const pathname = usePathname();
   const router = useRouter();
   const slug = pathname === "/" ? null : pathname.replace(/^\//, "").split("/")[0];
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+
+  // If preloaded data exists, use it immediately (no loading state)
+  const [data, setData] = useState<any>(preloadedData || null);
+  const [loading, setLoading] = useState(!preloadedData);
 
   const fetchAll = useCallback(async (slug: string) => {
     try {
@@ -45,9 +27,7 @@ export default function PublicPageClient() {
       const speakers = await getSiteSpeakers(site.id);
       const venues = await getSiteVenues(site.id);
       const exhibitions = await getSiteExhibitions(site.id);
-      const full = { site, days, speakers, settings, venues, exhibitions };
-      setData(full);
-      setCache(slug, full);
+      setData({ site, days, speakers, settings, venues, exhibitions });
       setLoading(false);
     } catch (err) {
       console.error("Failed to load site:", err);
@@ -61,16 +41,11 @@ export default function PublicPageClient() {
       return;
     }
 
-    // Try cache first for instant render
-    const cached = getCached(slug);
-    if (cached) {
-      setData(cached);
-      setLoading(false);
+    // If no preloaded data, fetch client-side (dev mode fallback)
+    if (!preloadedData) {
+      fetchAll(slug);
     }
-
-    // Fetch fresh data
-    fetchAll(slug);
-  }, [slug, router, fetchAll]);
+  }, [slug, router, fetchAll, preloadedData]);
 
   if (!slug || loading) {
     return (

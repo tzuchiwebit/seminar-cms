@@ -2895,6 +2895,11 @@ function SettingsPanel({ siteId, siteSlug, onToast }: { siteId: string; siteSlug
     try {
       await pb.collection("sites").update(siteId, { ...form, status: "published" });
       setSiteStatus("published");
+      // Trigger Cloudflare Pages rebuild via deploy hook
+      const hookUrl = await pb.collection("site_settings").getFirstListItem(`site="${siteId}" && key="deploy_hook_url"`).then(r => r.value).catch(() => "");
+      if (hookUrl) {
+        await fetch(hookUrl, { method: "POST" }).catch(() => {});
+      }
       setDeployStatus("success");
     } catch {
       setDeployStatus("failed");
@@ -2953,7 +2958,7 @@ function SettingsPanel({ siteId, siteSlug, onToast }: { siteId: string; siteSlug
             <h3 className="font-semibold text-dark">部署網站</h3>
             <p className="text-xs text-muted mt-0.5">
               {siteStatus === "published"
-                ? "網站已公開，所有人皆可訪問"
+                ? "網站已公開。修改內容後，請點擊「重新發布」更新公開網站"
                 : "驗證所有必填內容後發布網站"}
             </p>
           </div>
@@ -2968,20 +2973,30 @@ function SettingsPanel({ siteId, siteSlug, onToast }: { siteId: string; siteSlug
               預覽
             </a>
             {siteStatus === "published" ? (
-              <button
-                onClick={handleUnpublish}
-                className="px-5 py-2 bg-green/10 text-green text-sm font-medium rounded-lg border border-green/30 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors inline-flex items-center gap-1.5"
-              >
-                <span className="w-2 h-2 rounded-full bg-green" />
-                已部署
-              </button>
+              <>
+                <button
+                  onClick={handleDeploy}
+                  disabled={validating}
+                  className="px-5 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light transition-colors disabled:opacity-50 inline-flex items-center gap-1.5"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                  {validating ? "驗證中..." : "重新發布"}
+                </button>
+                <button
+                  onClick={handleUnpublish}
+                  className="px-5 py-2 bg-green/10 text-green text-sm font-medium rounded-lg border border-green/30 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors inline-flex items-center gap-1.5"
+                >
+                  <span className="w-2 h-2 rounded-full bg-green" />
+                  已上線
+                </button>
+              </>
             ) : (
               <button
                 onClick={handleDeploy}
                 disabled={validating}
                 className="px-5 py-2 bg-green text-white text-sm font-medium rounded-lg hover:bg-green/90 transition-colors disabled:opacity-50"
               >
-                {validating ? "驗證中..." : "部署"}
+                {validating ? "驗證中..." : "發布網站"}
               </button>
             )}
           </div>
@@ -3253,6 +3268,10 @@ export default function SiteDashboard({ slugOverride }: { slugOverride?: string 
           <div>
             <h1 className="text-xl font-semibold text-dark">{tabTitles[activeTab]}</h1>
             <p className="text-sm text-muted">{siteName || siteSlug} · /{siteSlug}</p>
+            <p className="text-xs text-gold mt-1 flex items-center gap-1">
+              <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              修改後請至「設定」頁面點擊發布，更新公開網站
+            </p>
           </div>
           <div className="flex items-center gap-3">
           </div>
