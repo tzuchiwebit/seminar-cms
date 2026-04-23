@@ -2917,7 +2917,7 @@ function SettingsPanel({ siteId, siteSlug, onToast }: { siteId: string; siteSlug
                 </div>
                 <div className="text-center">
                   <h3 className="text-lg font-semibold text-dark">發布成功</h3>
-                  <p className="text-sm text-muted mt-1">網站已成功發布</p>
+                  <p className="text-sm text-muted mt-1">網站正在更新中，約 1-2 分鐘後即可看到最新內容</p>
                 </div>
                 <button onClick={() => { setShowDeploy(false); setDeployStatus("idle"); }} className="px-5 py-2 bg-gold text-white text-sm font-medium rounded-lg">
                   完成
@@ -3138,7 +3138,10 @@ export default function SiteDashboard({ slugOverride }: { slugOverride?: string 
             <h1 className="text-xl font-semibold text-dark">{tabTitles[activeTab]}</h1>
             <p className="text-sm text-muted mt-0.5 flex items-center gap-1.5">
               <span className="w-4 h-4 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center shrink-0"><span className="text-gold text-[10px] font-bold">i</span></span>
-              <span><span className="text-gold">❶</span> 修改後點擊「儲存變更」儲存資料　<span className="text-gold">❷</span> 完成所有修改後，至「設定」點擊「重新發布」更新公開網站</span>
+              {["settings", "programme", "venues", "speakers"].includes(activeTab)
+                ? <span>完成所有修改後，至「設定」點擊「重新發布」更新公開網站</span>
+                : <span><span className="text-gold">❶</span> 修改後點擊「儲存變更」儲存資料　<span className="text-gold">❷</span> 完成所有修改後，至「設定」點擊「重新發布」更新公開網站</span>
+              }
             </p>
           </div>
           <div className="flex items-center gap-3">
