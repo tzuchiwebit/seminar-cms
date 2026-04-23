@@ -9,11 +9,11 @@ pbServer.autoCancellation(false);
 
 async function ensureAuth() {
   if (pbServer.authStore.isValid) return;
+  const email = process.env.PB_BUILD_EMAIL;
+  const password = process.env.PB_BUILD_PASSWORD;
+  if (!email || !password) return;
   try {
-    await pbServer.collection("users").authWithPassword(
-      process.env.PB_BUILD_EMAIL || "zhengrn25@tzuchi.org.tw",
-      process.env.PB_BUILD_PASSWORD || "Tz11143041"
-    );
+    await pbServer.collection("users").authWithPassword(email, password);
   } catch { /* continue without auth */ }
 }
 

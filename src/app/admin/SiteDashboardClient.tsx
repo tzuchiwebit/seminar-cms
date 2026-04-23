@@ -282,6 +282,14 @@ function AppearancePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: 
     setSaving(false);
   }, [siteId, favicon, banner, bannerMobile, ogTitle, ogTitleEn, ogDescription, ogDescriptionEn, ogImage, onToast]);
 
+  const doSaveRef = useRef(doSave);
+  doSaveRef.current = doSave;
+
+  // Auto-save on unmount (switching sections)
+  useEffect(() => {
+    return () => { if (loaded) doSaveRef.current(); };
+  }, [loaded]);
+
   const handleSave = async () => {
     await doSave();
   };
@@ -479,6 +487,16 @@ function DescriptionPanel({ siteId, onToast }: { siteId: string; onToast?: (msg:
     }
     setSaving(false);
   }, [siteId, onToast]);
+
+  const saveDataRef = useRef({ headlineZh, headlineEn, bodyZh, bodyEn, highlights });
+  saveDataRef.current = { headlineZh, headlineEn, bodyZh, bodyEn, highlights };
+  const doSaveRef = useRef(doSave);
+  doSaveRef.current = doSave;
+
+  // Auto-save on unmount
+  useEffect(() => {
+    return () => { if (loaded) { const d = saveDataRef.current; doSaveRef.current(d.headlineZh, d.headlineEn, d.bodyZh, d.bodyEn, d.highlights); } };
+  }, [loaded]);
 
   const handleSave = async () => {
     await doSave(headlineZh, headlineEn, bodyZh, bodyEn, highlights);
