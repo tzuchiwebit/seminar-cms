@@ -260,8 +260,8 @@ function AppearancePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: 
 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout>>(null);
 
-  const doSave = useCallback(async () => {
-    if (!loaded) { onToast?.("資料尚未載入，請重新整理頁面"); return; }
+  const doSave = useCallback(async (auto = false) => {
+    if (!loaded) { if (!auto) onToast?.("資料尚未載入，請重新整理頁面"); return; }
     setSaving(true);
     try {
       await batchUpsertSettings(siteId, [
@@ -275,9 +275,9 @@ function AppearancePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: 
         { key: "og_image", value: ogImage },
         { key: "last_updated", value: new Date().toISOString() },
       ]);
-      onToast?.("網站外觀：儲存成功");
+      onToast?.(auto ? "網站外觀：自動更新成功" : "網站外觀：儲存成功");
     } catch (e: any) {
-      onToast?.(`網站外觀：自動儲存失敗：${e?.message || "請檢查網路連線"}`);
+      if (!auto) onToast?.(`網站外觀：儲存失敗：${e?.message || "請檢查網路連線"}`);
     }
     setSaving(false);
   }, [siteId, favicon, banner, bannerMobile, ogTitle, ogTitleEn, ogDescription, ogDescriptionEn, ogImage, onToast]);
@@ -287,7 +287,7 @@ function AppearancePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: 
 
   // Auto-save on unmount (switching sections)
   useEffect(() => {
-    return () => { if (loaded) doSaveRef.current(); };
+    return () => { if (loaded) doSaveRef.current(true); };
   }, [loaded]);
 
   const handleSave = async () => {
@@ -472,7 +472,7 @@ function DescriptionPanel({ siteId, onToast }: { siteId: string; onToast?: (msg:
     load();
   }, [siteId]);
 
-  const doSave = useCallback(async (h1: string, h1e: string, b: string, be: string, hl: HighlightItem[]) => {
+  const doSave = useCallback(async (h1: string, h1e: string, b: string, be: string, hl: HighlightItem[], auto = false) => {
     setSaving(true);
     try {
       await upsertSetting(siteId, "description_headline", h1);
@@ -481,9 +481,9 @@ function DescriptionPanel({ siteId, onToast }: { siteId: string; onToast?: (msg:
       await upsertSetting(siteId, "description_body_en", be);
       await upsertSetting(siteId, "description_highlights", JSON.stringify(hl));
       touchLastUpdated(siteId);
-      onToast?.("活動簡介：儲存成功");
+      onToast?.(auto ? "活動簡介：自動更新成功" : "活動簡介：儲存成功");
     } catch (e: any) {
-      onToast?.(`活動簡介：儲存失敗：${e?.message || "請檢查網路連線"}`);
+      if (!auto) onToast?.(`活動簡介：儲存失敗：${e?.message || "請檢查網路連線"}`);
     }
     setSaving(false);
   }, [siteId, onToast]);
@@ -495,7 +495,7 @@ function DescriptionPanel({ siteId, onToast }: { siteId: string; onToast?: (msg:
 
   // Auto-save on unmount
   useEffect(() => {
-    return () => { if (loaded) { const d = saveDataRef.current; doSaveRef.current(d.headlineZh, d.headlineEn, d.bodyZh, d.bodyEn, d.highlights); } };
+    return () => { if (loaded) { const d = saveDataRef.current; doSaveRef.current(d.headlineZh, d.headlineEn, d.bodyZh, d.bodyEn, d.highlights, true); } };
   }, [loaded]);
 
   const handleSave = async () => {
@@ -2092,7 +2092,7 @@ function RegistrationSettingsPanel({ siteId, onToast }: { siteId: string; onToas
     })();
   }, [siteId]);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     setSaving(true);
     try {
       await upsertSetting(siteId, "registration_google_form_url", googleFormUrl.trim());
@@ -2103,7 +2103,27 @@ function RegistrationSettingsPanel({ siteId, onToast }: { siteId: string; onToas
       onToast(`儲存失敗：${(e as any)?.message || "請重試"}`);
     }
     setSaving(false);
-  };
+  }, [siteId, googleFormUrl, onToast]);
+
+  const handleSaveRef = useRef(handleSave);
+  handleSaveRef.current = handleSave;
+
+  // Auto-save on unmount
+  const googleFormUrlRef = useRef(googleFormUrl);
+  googleFormUrlRef.current = googleFormUrl;
+  const onToastRef = useRef(onToast);
+  onToastRef.current = onToast;
+  useEffect(() => {
+    return () => {
+      if (loading) return;
+      (async () => {
+        try {
+          await upsertSetting(siteId, "registration_google_form_url", googleFormUrlRef.current.trim());
+          onToastRef.current?.("報名設定：自動更新成功");
+        } catch { /* silent */ }
+      })();
+    };
+  }, [loading, siteId]);
 
   if (loading) return <div className="text-sm text-muted py-10 text-center">載入中...</div>;
 
@@ -2315,7 +2335,7 @@ const defaultTypography: TypographyGroup[] = [
 const fontFamilyOptions = ["Noto Sans TC", "Noto Serif TC", "Inter"];
 const fontWeightOptions = [400, 500, 700, 900];
 
-function StylesPanel({ siteSlug }: { siteSlug: string }) {
+function StylesPanel({ siteSlug, onToast }: { siteSlug: string; onToast?: (msg: string) => void }) {
   const [colors, setColors] = useState<ThemeColor[]>([]);
   const [typography, setTypography] = useState<TypographyGroup[]>(defaultTypography);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({ "標題": true, "內文": false, "小字": false });
@@ -2365,11 +2385,32 @@ function StylesPanel({ siteSlug }: { siteSlug: string }) {
         const record = await pb.collection("css_variables").create({ site: siteId, ...data });
         setCssRecordId(record.id);
       }
+      onToast?.("樣式設定：儲存成功");
     } catch (e) {
       console.error("Failed to save styles", e);
+      onToast?.(`樣式設定：儲存失敗：${(e as any)?.message || "請重試"}`);
     }
     setSaving(false);
-  }, [siteId, colors, typography, cssRecordId]);
+  }, [siteId, colors, typography, cssRecordId, onToast]);
+
+  // For unmount auto-save — save silently then show auto toast
+  const autoSave = useCallback(async () => {
+    if (!siteId) return;
+    try {
+      const data = { theme_colors: JSON.stringify(colors), theme_typography: JSON.stringify(typography) };
+      if (cssRecordId) {
+        await pb.collection("css_variables").update(cssRecordId, data);
+      }
+      onToast?.("樣式設定：自動更新成功");
+    } catch { /* silent */ }
+  }, [siteId, colors, typography, cssRecordId, onToast]);
+
+  const autoSaveRef = useRef(autoSave);
+  autoSaveRef.current = autoSave;
+
+  useEffect(() => {
+    return () => { if (loaded) autoSaveRef.current(); };
+  }, [loaded]);
 
   const addColor = () => {
     setColors([...colors, { label: "", hex: "#000000" }]);
@@ -2498,7 +2539,7 @@ function TourPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: string
     load();
   }, [siteId]);
 
-  const doSave = useCallback(async (t: TourGroup[], h: string, he: string) => {
+  const doSave = useCallback(async (t: TourGroup[], h: string, he: string, auto = false) => {
     setSaving(true);
     try {
       await batchUpsertSettings(siteId, [
@@ -2507,12 +2548,22 @@ function TourPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: string
         { key: "tour_header_en", value: he },
         { key: "last_updated", value: new Date().toISOString() },
       ]);
-      onToast?.("導覽梯次：儲存成功");
+      onToast?.(auto ? "導覽梯次：自動更新成功" : "導覽梯次：儲存成功");
     } catch (e: any) {
-      onToast?.(`導覽梯次：自動儲存失敗：${e?.message || "請檢查網路連線"}`);
+      if (!auto) onToast?.(`導覽梯次：儲存失敗：${e?.message || "請檢查網路連線"}`);
     }
     setSaving(false);
   }, [siteId, onToast]);
+
+  const saveDataRef = useRef({ tours, headerText, headerEn });
+  saveDataRef.current = { tours, headerText, headerEn };
+  const doSaveRef = useRef(doSave);
+  doSaveRef.current = doSave;
+
+  // Auto-save on unmount
+  useEffect(() => {
+    return () => { if (loaded) { const d = saveDataRef.current; doSaveRef.current(d.tours, d.headerText, d.headerEn, true); } };
+  }, [loaded]);
 
   const handleSave = async () => {
     await doSave(tours, headerText, headerEn);
@@ -3207,7 +3258,7 @@ export default function SiteDashboard({ slugOverride }: { slugOverride?: string 
               {activeTab === "venues" && siteId && <VenuesPanel siteId={siteId} onToast={showToast} />}
               {activeTab === "speakers" && siteId && <SpeakersPanel siteId={siteId} onToast={showToast} />}
               {activeTab === "registration" && siteId && <RegistrationSettingsPanel siteId={siteId} onToast={showToast} />}
-              {activeTab === "styles" && <StylesPanel siteSlug={siteSlug} />}
+              {activeTab === "styles" && <StylesPanel siteSlug={siteSlug} onToast={showToast} />}
               {activeTab === "settings" && siteId && <SettingsPanel siteId={siteId} siteSlug={siteSlug} onToast={showToast} />}
             </>
           )}

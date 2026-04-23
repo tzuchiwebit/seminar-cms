@@ -7,18 +7,7 @@ const pbServer = new PocketBase(
 );
 pbServer.autoCancellation(false);
 
-async function ensureAuth() {
-  if (pbServer.authStore.isValid) return;
-  const email = process.env.PB_BUILD_EMAIL;
-  const password = process.env.PB_BUILD_PASSWORD;
-  if (!email || !password) return;
-  try {
-    await pbServer.collection("users").authWithPassword(email, password);
-  } catch { /* continue without auth */ }
-}
-
 export async function fetchSiteDataForBuild(slug: string) {
-  await ensureAuth();
   const site = await pbServer.collection("sites").getFirstListItem(`slug="${slug}"`);
 
   const settingsRecords = await pbServer.collection("site_settings").getFullList({
