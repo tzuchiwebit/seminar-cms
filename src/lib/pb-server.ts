@@ -7,7 +7,18 @@ const pbServer = new PocketBase(
 );
 pbServer.autoCancellation(false);
 
+async function ensureAuth() {
+  if (pbServer.authStore.isValid) return;
+  try {
+    await pbServer.collection("users").authWithPassword(
+      process.env.PB_BUILD_EMAIL || "zhengrn25@tzuchi.org.tw",
+      process.env.PB_BUILD_PASSWORD || "Tz11143041"
+    );
+  } catch { /* continue without auth */ }
+}
+
 export async function fetchSiteDataForBuild(slug: string) {
+  await ensureAuth();
   const site = await pbServer.collection("sites").getFirstListItem(`slug="${slug}"`);
 
   const settingsRecords = await pbServer.collection("site_settings").getFullList({
