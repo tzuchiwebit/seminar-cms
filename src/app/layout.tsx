@@ -28,7 +28,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Seminar CMS",
+  title: "研討會多站管理系統",
   description: "Multi-site Event Management System",
 };
 

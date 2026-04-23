@@ -73,7 +73,7 @@ export async function fetchSiteDataForBuild(slug: string) {
 
   // Speakers
   const speakersRaw = await pbServer.collection("speakers").getFullList({
-    filter: `site="${site.id}"`,
+    filter: `site="${site.id}" && status="confirmed"`,
     sort: "sortOrder",
   });
   const speakers = speakersRaw.map((spk) => ({
@@ -95,6 +95,13 @@ export async function fetchSiteDataForBuild(slug: string) {
     filter: `site="${site.id}"`,
   });
 
+  // CSS Variables
+  let cssVariables = { theme_colors: "[]", theme_typography: "[]" };
+  try {
+    const cssRecord = await pbServer.collection("css_variables").getFirstListItem(`site="${site.id}"`);
+    cssVariables = { theme_colors: cssRecord.theme_colors || "[]", theme_typography: cssRecord.theme_typography || "[]" };
+  } catch { /* no css_variables record */ }
+
   return {
     site: JSON.parse(JSON.stringify(site)),
     days: JSON.parse(JSON.stringify(daysWithSessions)),
@@ -102,5 +109,6 @@ export async function fetchSiteDataForBuild(slug: string) {
     settings,
     venues: JSON.parse(JSON.stringify(venues)),
     exhibitions: JSON.parse(JSON.stringify(exhibitions)),
+    cssVariables,
   };
 }

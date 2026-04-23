@@ -22,18 +22,21 @@ Next.js 15 (App Router, static export), TypeScript (strict), Tailwind CSS v4, Po
 
 ## Architecture
 
-**Backend:** PocketHost at `https://academic-events.pockethost.io/`. All data is stored in PocketBase collections. No server-side code — everything is client-side rendered.
+**Backend:** PocketHost at `https://academic-events.pockethost.io/`. All data is stored in PocketBase collections. No server-side code — everything is client-side rendered (admin) or pre-built at deploy time (public).
 
 **Multi-tenancy:** Each Site has its own slug, content, and settings. All collections reference a `site` relation field.
 
+**Pre-built public site:** Public pages are statically generated at build time via `pb-server.ts`. Data is fetched from PocketBase during `npm run build` and embedded in HTML. In dev mode, falls back to client-side fetching via `pb-queries.ts`.
+
 **Route structure:**
-- `src/app/(public)/[[...slug]]/` — Client Components that fetch from PocketBase on mount
+- `src/app/(public)/[[...slug]]/` — Pre-built pages with data from build time; falls back to client fetch in dev
 - `src/app/admin/page.tsx` — Admin dashboard (site list) + site detail editor (via `?site=slug` query param)
 - `src/app/admin/SiteDashboardClient.tsx` — Site CMS editor (all panels: speakers, programme, venues, etc.)
 
 **Data layer:**
-- `src/lib/pb.ts` — PocketBase client singleton
-- `src/lib/pb-queries.ts` — Reusable query functions that assemble nested data structures (days→sessions→speakers)
+- `src/lib/pb.ts` — PocketBase client singleton (client-side)
+- `src/lib/pb-server.ts` — PocketBase instance for server-side/build-time fetching
+- `src/lib/pb-queries.ts` — Reusable query functions for client-side (dev mode fallback)
 
 **Auth:** PocketBase built-in auth via `src/hooks/useAuth.ts`. Login with email/password at `/admin/login`. No middleware — auth is checked client-side. Admin accounts managed in PocketHost dashboard.
 
@@ -49,6 +52,8 @@ Next.js 15 (App Router, static export), TypeScript (strict), Tailwind CSS v4, Po
 
 Key relationships: Site → Day → Session → SessionSpeaker (M-to-M with role), Session → Paper, Site → Speaker/Venue/Exhibition/Registration.
 
+Key site_settings keys: `deploy_hook_url` (Cloudflare deploy hook), `site_language` (`en`/`zh`/`both`), `section_*_visible` (toggle sections), `registration_google_form_url`.
+
 ## Environment Variables
 
 Optional: `NEXT_PUBLIC_POCKETBASE_URL` (defaults to `https://academic-events.pockethost.io/`).
@@ -59,4 +64,8 @@ Cream: #F5F1EB, Dark: #1A1816, Gold: #9B7B2F, Green: #3D5A3E, Sidebar: #3D3A36, 
 
 ## Deployment
 
-Static export to Cloudflare Pages. Connect GitHub repo → build command: `npm run build` → output directory: `out`. No environment variables needed.
+Static export to Cloudflare Pages. Build command: `npm run build`, output directory: `out`.
+
+**Deploy hook:** Admin clicks 「重新發布」in 設定 → triggers Cloudflare Pages rebuild via `deploy_hook_url` in site_settings. Public site updates in ~1-2 minutes.
+
+**Important:** Public pages are pre-built. Changes in PocketBase (via admin CMS) only appear on the public site after clicking 「重新發布」. Dev mode (`npm run dev`) fetches live data for preview.

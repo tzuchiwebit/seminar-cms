@@ -121,6 +121,7 @@ type HomePageProps = {
   slug: string;
   exhibitions: any[];
   venues: any[];
+  cssVariables?: { theme_colors: string; theme_typography: string };
 };
 
 /* ─── Helpers ─── */
@@ -148,7 +149,7 @@ function getTypeLabel(type: string, titleZh: string, lang: "zh" | "en" = "zh"): 
 
 /* ─── Page ─── */
 
-export default function HomePage({ days, speakers, settings, siteName, slug, exhibitions, venues }: HomePageProps) {
+export default function HomePage({ days, speakers, settings, siteName, slug, exhibitions, venues, cssVariables }: HomePageProps) {
   /* ── State (must be before derived data that uses lang) ── */
   const [selectedSpeaker, setSelectedSpeaker] = useState<any>(null);
   const [activeDay, setActiveDay] = useState(0);
@@ -341,23 +342,40 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
     }
   }, [settings.favicon, settings.og_title, settings.og_title_en, siteName]);
 
+  // Inject theme colors from css_variables collection
+  const themeColors = (() => {
+    try { return JSON.parse(cssVariables?.theme_colors || "[]"); } catch { return []; }
+  })();
+  const getColor = (label: string, fallback: string) => themeColors.find((c: any) => c.label === label)?.hex || fallback;
+
   return (
     <>
+      {themeColors.length > 0 && (
+        <style>{`:root { ${themeColors.map((c: any) => `--color-${c.label}: ${c.hex};`).join(" ")} }`}</style>
+      )}
+
       {/* ═══ Hero Banner ═══ */}
       <section id="about" className="w-full">
-        {/* Desktop banner */}
-        <img
-          src={settings.banner_image || "/img/about-banner.jpg"}
-          alt={settings.og_title_en || settings.og_title || siteName}
-          className={`w-full h-auto ${settings.banner_image_mobile ? "hidden md:block" : "block"}`}
-        />
-        {/* Mobile banner */}
-        {settings.banner_image_mobile && (
-          <img
-            src={settings.banner_image_mobile}
-            alt={settings.og_title_en || settings.og_title || siteName}
-            className="w-full h-auto block md:hidden"
-          />
+        {settings.banner_image ? (
+          <>
+            <img
+              src={settings.banner_image}
+              alt={settings.og_title_en || settings.og_title || siteName}
+              className={`w-full h-auto ${settings.banner_image_mobile ? "hidden md:block" : "block"}`}
+            />
+            {settings.banner_image_mobile && (
+              <img
+                src={settings.banner_image_mobile}
+                alt={settings.og_title_en || settings.og_title || siteName}
+                className="w-full h-auto block md:hidden"
+              />
+            )}
+          </>
+        ) : (
+          <div className="w-full aspect-[2000/600] bg-dark flex flex-col items-center justify-center gap-3">
+            <h1 className="font-serif text-cream text-3xl md:text-5xl font-bold text-center px-6">{siteName}</h1>
+            <p className="font-inter text-cream/40 text-sm tracking-widest">橫幅圖片預留位置</p>
+          </div>
         )}
       </section>
 
@@ -428,16 +446,16 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
 
 
       {/* ═══ 導覽梯次 — Bold Editorial ═══ */}
-      {settings.section_tour_visible !== "false" && <section className="bg-cream min-h-[calc(100vh-64px)] flex flex-col justify-center" id="tour">
+      {settings.section_tour_visible !== "false" && <section className="bg-cream min-h-[calc(100vh-64px)] flex flex-col" id="tour">
         <div className="w-full h-1.5 bg-gold/30 relative overflow-hidden">
           <div
             className="absolute inset-y-0 w-[200px] animate-[shimmer_2.5s_ease-in-out_infinite]"
             style={{
-              background: "linear-gradient(90deg, transparent 0%, #D4B85A 30%, #FAF8F5 50%, #D4B85A 70%, transparent 100%)",
+              background: "linear-gradient(90deg, transparent 0%, var(--color-gold-accent) 30%, var(--color-background) 50%, var(--color-gold-accent) 70%, transparent 100%)",
             }}
           />
         </div>
-        <div className="flex flex-col lg:flex-row lg:items-stretch w-full py-10 md:py-16 lg:py-24 px-6 md:px-12 lg:px-20 gap-6 md:gap-10 lg:gap-20">
+        <div className="flex flex-col lg:flex-row lg:items-stretch w-full py-10 md:py-16 lg:py-24 px-6 md:px-12 lg:px-20 gap-6 md:gap-10 lg:gap-20 flex-1">
           <div className="flex flex-col w-full lg:w-[560px] shrink-0 gap-3 md:gap-4">
             <p className="font-inter text-gold text-[13px] md:text-[16px] font-semibold tracking-[0.2em] uppercase leading-4">
               {lang === "en" ? "EXHIBITION TOUR" : "展覽參觀"}
@@ -448,17 +466,13 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
             <div className="w-12 h-0.5 bg-gold" />
             <p className="font-sans text-muted text-[14px] md:text-[16px] leading-[24px] md:leading-[26px] whitespace-pre-line">
               <Linkify>{lang === "en"
-                ? (settings.tour_header_en || settings.tour_header || "75 minutes per group\n3 groups, 20 people each")
-                : (settings.tour_header || "每梯次七十五分鐘\n三梯次，每梯次二十人")}</Linkify>
+                ? (settings.tour_header_en || settings.tour_header || "")
+                : (settings.tour_header || "")}</Linkify>
             </p>
           </div>
           <div className="flex flex-col grow justify-center">
             {(() => {
-              const defaultTours = [
-                { number: "01", title: "慈濟台灣與美國志工", sub: "二十人一梯次，75 分鐘", tag: "中文導覽" },
-                { number: "02", title: "大陸與台灣學者貴賓", sub: "二十人一梯次，75 分鐘", tag: "中文導覽" },
-                { number: "03", title: "歐美貴賓與學者", sub: "二十人一梯次，75 分鐘", tag: "英文導覽" },
-              ];
+              const defaultTours: any[] = [];
               let tours = defaultTours;
               if (settings.tour_groups) {
                 try {
@@ -469,7 +483,7 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
               return tours;
             })().map((tour: any, i: number, arr: any[]) => (
               <div key={tour.number} className={`flex items-center py-4 md:py-6 gap-3 md:gap-4 ${i < arr.length - 1 ? "border-b border-border" : ""}`}>
-                <span className="font-inter text-[#D4B85A] text-[36px] md:text-[48px] lg:text-[64px] font-extralight leading-none w-[48px] md:w-[70px] lg:w-[90px] shrink-0 text-center self-start">{tour.number}</span>
+                <span className="font-inter text-gold-accent text-[36px] md:text-[48px] lg:text-[64px] font-extralight leading-none w-[48px] md:w-[70px] lg:w-[90px] shrink-0 text-center self-start">{tour.number}</span>
                 <div className="flex flex-col grow gap-1 min-w-0">
                   <span className="font-serif text-dark text-[13px] md:text-[16px] lg:text-[18px] font-bold leading-snug">{lang === "en" ? (tour.titleEn || tour.title) : tour.title}</span>
                   <span className="font-sans text-muted text-[11px] md:text-[13px] leading-[18px]">{lang === "en" ? (tour.subEn || tour.sub) : tour.sub}</span>
@@ -488,7 +502,7 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
           <div
             className="absolute inset-y-0 w-[200px] animate-[shimmer_2.5s_ease-in-out_infinite]"
             style={{
-              background: "linear-gradient(90deg, transparent 0%, #D4B85A 30%, #FAF8F5 50%, #D4B85A 70%, transparent 100%)",
+              background: "linear-gradient(90deg, transparent 0%, var(--color-gold-accent) 30%, var(--color-background) 50%, var(--color-gold-accent) 70%, transparent 100%)",
             }}
           />
         </div>
@@ -657,10 +671,10 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
       </section>}
 
       {/* ═══ 場地 — Split Layout ═══ */}
-      {settings.section_venues_visible !== "false" && venues.length > 0 && <VenueSection venues={venues} lang={lang} />}
+      {settings.section_venues_visible !== "false" && venues.length > 0 && <VenueSection venues={venues} lang={lang} venueBg={getColor("cream", "#F5F1EB")} aboveBg={getColor("white", "#FFFFFF")} belowBg={getColor("white", "#FFFFFF")} />}
 
       {/* ═══ 講者 ═══ */}
-      {settings.section_speakers_visible !== "false" && <section className="bg-cream px-4 md:px-20 py-12 md:py-20" id="speakers">
+      {settings.section_speakers_visible !== "false" && <section className="bg-white px-4 md:px-20 py-12 md:py-20" id="speakers">
         <div ref={speakersSection.ref} className="mx-auto w-full max-w-5xl">
           <div className={`text-center mb-14 transition-all duration-700 ${speakersSection.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
             <p className="font-inter text-gold text-[15px] tracking-[0.2em] uppercase mb-3">
@@ -743,17 +757,17 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
 }
 
 /* ─── Venue Section (with scroll animations) ─── */
-function VenueSection({ venues, lang }: { venues: any[]; lang: "zh" | "en" }) {
+function VenueSection({ venues, lang, venueBg, aboveBg, belowBg }: { venues: any[]; lang: "zh" | "en"; venueBg: string; aboveBg: string; belowBg: string }) {
   const header = useScrollReveal<HTMLDivElement>();
 
   if (venues.length === 0) return null;
 
   return (
-    <section className="bg-[#FAF8F5] relative overflow-hidden min-h-[calc(100vh-64px)]" id="venue">
-      {/* ── Top decorative wave ── */}
-      <div className="w-full h-[80px] relative overflow-hidden bg-white">
+    <section className="bg-cream relative overflow-hidden min-h-[calc(100vh-64px)]" id="venue">
+      {/* ── Top wave ── */}
+      <div className="w-full h-[80px] relative overflow-hidden" style={{ backgroundColor: aboveBg }}>
         <svg className="w-full h-full" viewBox="0 0 1440 80" preserveAspectRatio="none">
-          <path d="M0,0 C360,60 720,20 1080,70 C1260,90 1380,50 1440,60 L1440,80 L0,80 Z" fill="#FAF8F5" />
+          <path d="M0,0 C360,60 720,20 1080,70 C1260,90 1380,50 1440,60 L1440,80 L0,80 Z" fill={venueBg} />
         </svg>
       </div>
 
@@ -780,10 +794,10 @@ function VenueSection({ venues, lang }: { venues: any[]; lang: "zh" | "en" }) {
         <VenueLocation key={venue.id || idx} venue={venue} index={idx} lang={lang} />
       ))}
 
-      {/* ── Bottom decorative wave ── */}
-      <div className="w-full h-[100px] relative overflow-hidden bg-cream">
+      {/* ── Bottom wave ── */}
+      <div className="w-full h-[80px] relative overflow-hidden" style={{ backgroundColor: venueBg }}>
         <svg className="w-full h-full" viewBox="0 0 1440 80" preserveAspectRatio="none">
-          <path d="M0,80 C360,20 720,60 1080,10 C1260,-10 1380,30 1440,20 L1440,0 L0,0 Z" fill="#FAF8F5" />
+          <path d="M0,0 C360,60 720,20 1080,70 C1260,90 1380,50 1440,60 L1440,80 L0,80 Z" fill={belowBg} />
         </svg>
       </div>
     </section>
@@ -832,13 +846,13 @@ function VenueLocation({ venue, index, lang }: { venue: any; index: number; lang
 
   const slideDir = isImageLeft ? "translate-x-8" : "-translate-x-8";
   const textPanel = (
-    <div className={`w-full md:w-1/2 flex flex-col justify-center px-6 md:px-10 lg:px-16 py-8 md:py-0 gap-2 md:gap-3 bg-[#FAF8F5] ${!isImageLeft ? "order-2 md:order-1" : ""} transition-all duration-700 delay-200 ${loc.isVisible ? "opacity-100 translate-x-0" : `opacity-0 ${slideDir}`}`}>
+    <div className={`w-full md:w-1/2 flex flex-col justify-center px-6 md:px-10 lg:px-16 py-8 md:py-0 gap-2 md:gap-3 bg-background ${!isImageLeft ? "order-2 md:order-1" : ""} transition-all duration-700 delay-200 ${loc.isVisible ? "opacity-100 translate-x-0" : `opacity-0 ${slideDir}`}`}>
       <span className="font-inter text-gold/20 text-[48px] md:text-[72px] font-extralight leading-none">{number}</span>
       <h3 className="font-serif text-dark text-[22px] md:text-[28px] lg:text-[32px] font-bold leading-tight">
         {title}
       </h3>
       {(venue.description || venue.descriptionEn) && (
-        <p className="font-sans text-[#5A554B] text-[14px] font-light leading-[26px] max-w-[460px]">
+        <p className="font-sans text-muted text-[14px] font-light leading-[26px] max-w-[460px]">
           {lang === "en" ? (venue.descriptionEn || venue.description) : venue.description}
         </p>
       )}

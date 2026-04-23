@@ -15,6 +15,18 @@ async function upsertSetting(siteId: string, key: string, value: string) {
   }
 }
 
+// Batch upsert — fetch all settings once, then update/create in parallel
+async function batchUpsertSettings(siteId: string, pairs: { key: string; value: string }[]) {
+  const existing = await pb.collection("site_settings").getFullList({ filter: `site="${siteId}"` });
+  const existingMap = new Map(existing.map(r => [r.key, r.id]));
+  await Promise.all(pairs.map(({ key, value }) => {
+    const id = existingMap.get(key);
+    return id
+      ? pb.collection("site_settings").update(id, { value })
+      : pb.collection("site_settings").create({ site: siteId, key, value });
+  }));
+}
+
 async function touchLastUpdated(siteId: string) {
   await upsertSetting(siteId, "last_updated", new Date().toISOString());
 }
@@ -237,7 +249,10 @@ function AppearancePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: 
         if (data.og_description_en) setOgDescriptionEn(data.og_description_en);
         if (data.og_image) setOgImage(data.og_image);
         else if (data.banner_image) setOgImage(data.banner_image);
-      } catch { /* ignore */ }
+      } catch {
+        // Load failed — do NOT set loaded to prevent auto-save from overwriting with empty data
+        return;
+      }
       setLoaded(true);
     }
     load();
@@ -246,9 +261,10 @@ function AppearancePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout>>(null);
 
   const doSave = useCallback(async () => {
+    if (!loaded) { onToast?.("資料尚未載入，請重新整理頁面"); return; }
     setSaving(true);
     try {
-      const pairs = [
+      await batchUpsertSettings(siteId, [
         { key: "favicon", value: favicon },
         { key: "banner_image", value: banner },
         { key: "banner_image_mobile", value: bannerMobile },
@@ -257,28 +273,16 @@ function AppearancePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: 
         { key: "og_description", value: ogDescription },
         { key: "og_description_en", value: ogDescriptionEn },
         { key: "og_image", value: ogImage },
-      ];
-      for (const pair of pairs) {
-        await upsertSetting(siteId, pair.key, pair.value);
-      }
-      touchLastUpdated(siteId);
-      onToast?.("網站外觀：已自動儲存");
+        { key: "last_updated", value: new Date().toISOString() },
+      ]);
+      onToast?.("網站外觀：儲存成功");
     } catch (e: any) {
       onToast?.(`網站外觀：自動儲存失敗：${e?.message || "請檢查網路連線"}`);
     }
     setSaving(false);
   }, [siteId, favicon, banner, bannerMobile, ogTitle, ogTitleEn, ogDescription, ogDescriptionEn, ogImage, onToast]);
 
-  // Auto-save with debounce
-  useEffect(() => {
-    if (!loaded) return;
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-    autoSaveTimer.current = setTimeout(() => { doSave(); }, 2000);
-    return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
-  }, [ogTitle, ogTitleEn, ogDescription, ogDescriptionEn, loaded, doSave]);
-
   const handleSave = async () => {
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     await doSave();
   };
 
@@ -308,13 +312,7 @@ function AppearancePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: 
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-dark">網站外觀</h2>
-        <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light transition-colors disabled:opacity-50 flex items-center gap-2">
-          {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-          {saving ? "儲存中..." : "儲存變更"}
-        </button>
-      </div>
+      <button data-section-save onClick={handleSave} disabled={saving} className="hidden">儲存</button>
 
       {/* Favicon */}
       <div className="bg-white rounded-xl border border-border p-6 space-y-4">
@@ -335,54 +333,45 @@ function AppearancePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: 
               上傳 Favicon
               <input type="file" accept="image/png,image/x-icon,image/svg+xml" className="hidden" onChange={(e) => handleUpload(e, "favicon")} />
             </label>
-            {favicon && <p className="text-xs text-muted mt-1">{favicon}</p>}
           </div>
         </div>
       </div>
 
-      {/* Banner Image */}
+      {/* Banner Desktop + Mobile side by side */}
       <div className="bg-white rounded-xl border border-border p-6 space-y-4">
-        <h3 className="font-semibold text-dark">Banner 橫幅</h3>
-        <p className="text-xs text-muted">首頁頂部的橫幅圖片，建議 1920x573px</p>
-        {banner ? (
-          <div className="border border-border rounded-lg overflow-hidden">
-            <img src={banner} alt="banner" className="w-full h-auto" />
+        <div className="grid grid-cols-2 gap-6">
+          <div className="space-y-3">
+            <h3 className="font-semibold text-dark">Banner 橫幅</h3>
+            <p className="text-xs text-muted">首頁頂部橫幅，建議 1920x573px</p>
+            {banner ? (
+              <div className="border border-border rounded-lg overflow-hidden">
+                <img src={banner} alt="banner" className="w-full h-auto" />
+              </div>
+            ) : (
+              <div className="border border-dashed border-border rounded-lg h-28 flex items-center justify-center text-muted text-sm">尚未上傳</div>
+            )}
+            <label className="inline-flex px-3 py-1.5 bg-cream border border-border rounded-lg text-sm text-dark cursor-pointer hover:bg-cream-dark transition-colors">
+              上傳橫幅
+              <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => handleUpload(e, "banner")} />
+            </label>
           </div>
-        ) : (
-          <div className="border border-dashed border-border rounded-lg h-32 flex items-center justify-center text-muted text-sm">
-            尚未上傳橫幅
+          <div className="space-y-3">
+            <h3 className="font-semibold text-dark">Banner Mobile 手機橫幅</h3>
+            <p className="text-xs text-muted">手機版橫幅，建議 750x1000px（直式）</p>
+            {bannerMobile ? (
+              <div className="border border-border rounded-lg overflow-hidden max-w-[200px]">
+                <img src={bannerMobile} alt="banner mobile" className="w-full h-auto" />
+              </div>
+            ) : (
+              <div className="border border-dashed border-border rounded-lg h-28 max-w-[200px] flex items-center justify-center text-muted text-sm">
+                {banner ? "使用桌面版" : "尚未上傳"}
+              </div>
+            )}
+            <label className="inline-flex px-3 py-1.5 bg-cream border border-border rounded-lg text-sm text-dark cursor-pointer hover:bg-cream-dark transition-colors">
+              上傳手機版
+              <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => handleUpload(e, "banner-mobile")} />
+            </label>
           </div>
-        )}
-        <div className="flex items-center gap-3">
-          <label className="px-3 py-1.5 bg-cream border border-border rounded-lg text-sm text-dark cursor-pointer hover:bg-cream-dark transition-colors">
-            上傳橫幅
-            <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => handleUpload(e, "banner")} />
-          </label>
-          <span className="text-xs text-muted">或輸入路徑：</span>
-          <input type="text" value={banner} onChange={(e) => { setBanner(e.target.value); if (!ogImage) setOgImage(e.target.value); }} className="flex-1 px-3 py-1.5 border border-border rounded-lg text-sm" />
-        </div>
-      </div>
-
-      {/* Banner Mobile */}
-      <div className="bg-white rounded-xl border border-border p-6 space-y-4">
-        <h3 className="font-semibold text-dark">Banner Mobile 手機橫幅</h3>
-        <p className="text-xs text-muted">手機版的橫幅圖片，建議 750x1000px（直式）。若未上傳，將使用桌面版橫幅。</p>
-        {bannerMobile ? (
-          <div className="border border-border rounded-lg overflow-hidden max-w-[240px]">
-            <img src={bannerMobile} alt="banner mobile" className="w-full h-auto" />
-          </div>
-        ) : (
-          <div className="border border-dashed border-border rounded-lg h-32 max-w-[240px] flex items-center justify-center text-muted text-sm">
-            {banner ? "使用桌面版橫幅" : "尚未上傳"}
-          </div>
-        )}
-        <div className="flex items-center gap-3">
-          <label className="px-3 py-1.5 bg-cream border border-border rounded-lg text-sm text-dark cursor-pointer hover:bg-cream-dark transition-colors">
-            Upload 上傳
-            <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => handleUpload(e, "banner-mobile")} />
-          </label>
-          <span className="text-xs text-muted">或輸入路徑：</span>
-          <input type="text" value={bannerMobile} onChange={(e) => setBannerMobile(e.target.value)} className="flex-1 px-3 py-1.5 border border-border rounded-lg text-sm" />
         </div>
       </div>
 
@@ -390,13 +379,15 @@ function AppearancePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: 
       <div className="bg-white rounded-xl border border-border p-6 space-y-4">
         <h3 className="font-semibold text-dark">Social Sharing / OG Metadata</h3>
         <p className="text-xs text-muted">在 Facebook、LINE、Twitter 等社群平台分享時顯示的資訊</p>
-        <div>
-          <label className="block text-sm font-medium text-dark mb-1">分享標題（中文）</label>
-          <input type="text" value={ogTitle} onChange={(e) => setOgTitle(e.target.value)} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-dark mb-1">分享標題（英文）</label>
-          <input type="text" value={ogTitleEn} onChange={(e) => setOgTitleEn(e.target.value)} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-dark mb-1">分享標題（中文）</label>
+            <input type="text" value={ogTitle} onChange={(e) => setOgTitle(e.target.value)} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-dark mb-1">分享標題（英文）</label>
+            <input type="text" value={ogTitleEn} onChange={(e) => setOgTitleEn(e.target.value)} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+          </div>
         </div>
         <div>
           <label className="block text-sm font-medium text-dark mb-1">分享說明（中文）</label>
@@ -465,7 +456,9 @@ function DescriptionPanel({ siteId, onToast }: { siteId: string; onToast?: (msg:
             if (Array.isArray(parsed)) setHighlights(parsed);
           } catch { /* ignore */ }
         }
-      } catch { /* ignore */ }
+      } catch {
+        return; // Don't set loaded — prevents auto-save from overwriting with empty data
+      }
       setLoaded(true);
     }
     load();
@@ -474,36 +467,20 @@ function DescriptionPanel({ siteId, onToast }: { siteId: string; onToast?: (msg:
   const doSave = useCallback(async (h1: string, h1e: string, b: string, be: string, hl: HighlightItem[]) => {
     setSaving(true);
     try {
-      const pairs = [
-        { key: "description_headline", value: h1 },
-        { key: "description_headline_en", value: h1e },
-        { key: "description_body", value: b },
-        { key: "description_body_en", value: be },
-        { key: "description_highlights", value: JSON.stringify(hl) },
-      ];
-      for (const pair of pairs) {
-        await upsertSetting(siteId, pair.key, pair.value);
-      }
+      await upsertSetting(siteId, "description_headline", h1);
+      await upsertSetting(siteId, "description_headline_en", h1e);
+      await upsertSetting(siteId, "description_body", b);
+      await upsertSetting(siteId, "description_body_en", be);
+      await upsertSetting(siteId, "description_highlights", JSON.stringify(hl));
       touchLastUpdated(siteId);
-      onToast?.("活動簡介：已自動儲存");
+      onToast?.("活動簡介：儲存成功");
     } catch (e: any) {
-      onToast?.(`活動簡介：自動儲存失敗：${e?.message || "請檢查網路連線"}`);
+      onToast?.(`活動簡介：儲存失敗：${e?.message || "請檢查網路連線"}`);
     }
     setSaving(false);
   }, [siteId, onToast]);
 
-  // Auto-save with debounce
-  useEffect(() => {
-    if (!loaded) return;
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-    autoSaveTimer.current = setTimeout(() => {
-      doSave(headlineZh, headlineEn, bodyZh, bodyEn, highlights);
-    }, 2000);
-    return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
-  }, [headlineZh, headlineEn, bodyZh, bodyEn, highlights, loaded, doSave]);
-
   const handleSave = async () => {
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     await doSave(headlineZh, headlineEn, bodyZh, bodyEn, highlights);
   };
 
@@ -525,14 +502,13 @@ function DescriptionPanel({ siteId, onToast }: { siteId: string; onToast?: (msg:
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-dark">活動簡介</h2>
-        <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light transition-colors disabled:opacity-50 flex items-center gap-2">
-          {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-          {saving ? "儲存中..." : "儲存變更"}
-        </button>
-      </div>
-      <div className="bg-white rounded-xl border border-border p-6 space-y-5">
+      <button data-section-save onClick={handleSave} disabled={saving} className="hidden">儲存</button>
+      <div className="bg-white rounded-xl border border-border overflow-hidden">
+        <div className="px-6 py-4 border-b border-border">
+          <h3 className="font-semibold text-dark">活動簡介</h3>
+          <p className="text-xs text-muted mt-0.5">首頁顯示的活動說明與亮點資訊</p>
+        </div>
+        <div className="p-6 space-y-5">
         <div className="grid grid-cols-2 gap-5">
           <div>
             <label className="block text-sm font-medium text-dark mb-1">標題（中文）</label>
@@ -550,6 +526,7 @@ function DescriptionPanel({ siteId, onToast }: { siteId: string; onToast?: (msg:
         <div>
           <label className="block text-sm font-medium text-dark mb-1">說明（英文）</label>
           <textarea rows={5} value={bodyEn} onChange={(e) => setBodyEn(e.target.value)} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+        </div>
         </div>
       </div>
 
@@ -569,18 +546,27 @@ function DescriptionPanel({ siteId, onToast }: { siteId: string; onToast?: (msg:
             const IconComp = highlightIconMap[item.icon] || BookOpen;
             return (
             <div key={index} className="flex items-center gap-3 px-6 py-4">
-              <div className="relative shrink-0">
-                <select
-                  value={item.icon}
-                  onChange={(e) => updateHighlight(index, "icon", e.target.value)}
-                  className="w-10 h-10 opacity-0 absolute inset-0 cursor-pointer z-10"
+              <div className="relative shrink-0 group">
+                <div className="w-10 h-10 flex items-center justify-center border border-border rounded-lg bg-white cursor-pointer hover:bg-cream transition-colors"
+                  onClick={(e) => {
+                    const dropdown = e.currentTarget.nextElementSibling as HTMLElement;
+                    if (dropdown) dropdown.classList.toggle("hidden");
+                  }}
                 >
-                  {ICON_OPTIONS.map((opt) => (
-                    <option key={opt} value={opt}>{opt}</option>
-                  ))}
-                </select>
-                <div className="w-10 h-10 flex items-center justify-center border border-border rounded-lg bg-white pointer-events-none">
                   <IconComp className="w-5 h-5 text-gold" />
+                </div>
+                <div className="hidden absolute top-full left-0 mt-1 bg-white border border-border rounded-lg shadow-lg z-20 p-1.5 grid grid-cols-4 gap-1 w-[160px]">
+                  {ICON_OPTIONS.map((opt) => {
+                    const OptIcon = highlightIconMap[opt] || BookOpen;
+                    return (
+                      <button key={opt} type="button" onClick={(e) => {
+                        updateHighlight(index, "icon", opt);
+                        (e.currentTarget.closest(".grid") as HTMLElement)?.parentElement?.classList.add("hidden");
+                      }} className={`w-8 h-8 flex items-center justify-center rounded-md hover:bg-cream transition-colors ${item.icon === opt ? "bg-gold/10 ring-1 ring-gold/30" : ""}`} title={opt}>
+                        <OptIcon className="w-4 h-4 text-gold" />
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
               <div className="flex-1">
@@ -810,8 +796,9 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
         <div className="flex gap-1 border-b border-border">
           {["All", "Confirmed", "Pending"].map((f) => {
             const filterLabels: Record<string, string> = { All: "全部", Confirmed: "已確認", Pending: "待確認" };
+            const filterTips: Record<string, string> = { All: "顯示所有講者", Confirmed: "已確認的講者會顯示在公開網站", Pending: "待確認的講者不會顯示在公開網站" };
             return (
-            <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px ${filter === f ? "border-gold text-gold" : "border-transparent text-muted hover:text-dark"}`}>
+            <button key={f} onClick={() => setFilter(f)} title={filterTips[f]} className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px ${filter === f ? "border-gold text-gold" : "border-transparent text-muted hover:text-dark"}`}>
               {filterLabels[f]}
             </button>
           );
@@ -2104,10 +2091,15 @@ function RegistrationSettingsPanel({ siteId, onToast }: { siteId: string; onToas
 
   return (
     <>
-      <h2 className="text-lg font-semibold text-dark mb-6">報名設定</h2>
+      <button data-section-save onClick={handleSave} disabled={saving} className="hidden">儲存</button>
 
       {/* Google Form URL */}
-      <div className="bg-white rounded-xl border border-border p-6 mb-6">
+      <div className="bg-white rounded-xl border border-border overflow-hidden mb-6">
+        <div className="px-6 py-4 border-b border-border">
+          <h3 className="font-semibold text-dark">報名設定</h3>
+          <p className="text-xs text-muted mt-0.5">設定報名表單連結與相關功能</p>
+        </div>
+        <div className="p-6">
         <label className="block text-sm font-medium text-dark mb-1">Google 表單連結</label>
         <p className="text-xs text-muted mb-3">設定後，前台「立即報名」按鈕將會連結至此 Google 表單。若留空，報名按鈕將不會顯示。</p>
         <input
@@ -2126,16 +2118,8 @@ function RegistrationSettingsPanel({ siteId, onToast }: { siteId: string; onToas
             </a>
           </div>
         )}
+        </div>
       </div>
-
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        className="px-6 py-2.5 bg-dark text-cream text-sm font-medium rounded-lg hover:bg-dark/80 transition-colors disabled:opacity-50 flex items-center gap-2"
-      >
-        {saving && <div className="w-4 h-4 border-2 border-cream/30 border-t-cream rounded-full animate-spin" />}
-        {saving ? "儲存中..." : "儲存設定"}
-      </button>
     </>
   );
 }
@@ -2321,32 +2305,30 @@ function StylesPanel({ siteSlug }: { siteSlug: string }) {
   const [loaded, setLoaded] = useState(false);
   const [siteId, setSiteId] = useState<string | null>(null);
 
-  // Resolve slug to site ID, then fetch settings
+  const [cssRecordId, setCssRecordId] = useState<string | null>(null);
+
+  // Resolve slug to site ID, then fetch from css_variables
   useEffect(() => {
     async function load() {
       try {
-        // Get site by slug
         const site = await pb.collection("sites").getFirstListItem(`slug="${siteSlug}"`);
         if (!site) return;
         setSiteId(site.id);
 
-        const data = await loadSettings(site.id);
-
-        if (data.theme_colors) {
+        try {
+          const cssRecord = await pb.collection("css_variables").getFirstListItem(`site="${site.id}"`);
+          setCssRecordId(cssRecord.id);
           try {
-            const parsed = JSON.parse(data.theme_colors);
+            const parsed = JSON.parse(cssRecord.theme_colors || "[]");
             if (Array.isArray(parsed) && parsed.length > 0) setColors(parsed);
             else setColors(defaultColors);
           } catch { setColors(defaultColors); }
-        } else {
-          setColors(defaultColors);
-        }
-
-        if (data.theme_typography) {
           try {
-            const parsed = JSON.parse(data.theme_typography);
+            const parsed = JSON.parse(cssRecord.theme_typography || "[]");
             if (Array.isArray(parsed) && parsed.length > 0) setTypography(parsed);
           } catch { /* use defaults */ }
+        } catch {
+          setColors(defaultColors);
         }
       } catch { /* use defaults */ }
       setLoaded(true);
@@ -2358,13 +2340,18 @@ function StylesPanel({ siteSlug }: { siteSlug: string }) {
     if (!siteId) return;
     setSaving(true);
     try {
-      await upsertSetting(siteId, "theme_colors", JSON.stringify(colors));
-      await upsertSetting(siteId, "theme_typography", JSON.stringify(typography));
+      const data = { theme_colors: JSON.stringify(colors), theme_typography: JSON.stringify(typography) };
+      if (cssRecordId) {
+        await pb.collection("css_variables").update(cssRecordId, data);
+      } else {
+        const record = await pb.collection("css_variables").create({ site: siteId, ...data });
+        setCssRecordId(record.id);
+      }
     } catch (e) {
       console.error("Failed to save styles", e);
     }
     setSaving(false);
-  }, [siteId, colors, typography]);
+  }, [siteId, colors, typography, cssRecordId]);
 
   const addColor = () => {
     setColors([...colors, { label: "", hex: "#000000" }]);
@@ -2404,18 +2391,7 @@ function StylesPanel({ siteSlug }: { siteSlug: string }) {
 
   return (
     <div className="space-y-8">
-      {/* Header with Save */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-dark">樣式設定</h2>
-        <button
-          onClick={handleSave}
-          disabled={saving || !siteId}
-          className="px-4 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light transition-colors disabled:opacity-50"
-        >
-          {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-          {saving ? "儲存中..." : "儲存變更"}
-        </button>
-      </div>
+      <button data-section-save onClick={handleSave} disabled={saving || !siteId} className="hidden">儲存</button>
 
       {/* ── Colors Section ── */}
       <div className="bg-white rounded-xl border border-border">
@@ -2471,115 +2447,7 @@ function StylesPanel({ siteSlug }: { siteSlug: string }) {
         </div>
       </div>
 
-      {/* ── Typography Section ── */}
-      <div className="bg-white rounded-xl border border-border">
-        <div className="px-6 py-4 border-b border-border">
-          <h3 className="font-semibold text-dark">文字樣式</h3>
-        </div>
-        <div className="divide-y divide-border">
-          {typography.map((group, gIndex) => (
-            <div key={group.groupLabel}>
-              {/* Group header - collapsible */}
-              <button
-                onClick={() => toggleGroup(group.groupLabel)}
-                className="w-full flex items-center justify-between px-6 py-3 hover:bg-cream/30 transition-colors"
-              >
-                <span className="text-sm font-medium text-dark">{group.groupLabel}</span>
-                {expandedGroups[group.groupLabel] ? (
-                  <ChevronDown className="w-4 h-4 text-muted" />
-                ) : (
-                  <ChevronRight className="w-4 h-4 text-muted" />
-                )}
-              </button>
-
-              {/* Group items */}
-              {expandedGroups[group.groupLabel] && (
-                <div className="px-6 pb-4 space-y-4">
-                  {group.items.map((item, iIndex) => (
-                    <div key={item.key} className="border border-border rounded-lg p-4 space-y-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-xs font-medium text-muted uppercase tracking-wider">{item.label}</span>
-                      </div>
-
-                      <div className="grid grid-cols-4 gap-3">
-                        {/* Font family */}
-                        <div>
-                          <label className="block text-xs text-muted mb-1">Font Family</label>
-                          <select
-                            value={item.fontFamily}
-                            onChange={(e) => updateTypographyItem(gIndex, iIndex, "fontFamily", e.target.value)}
-                            className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-white"
-                          >
-                            {fontFamilyOptions.map((f) => (
-                              <option key={f} value={f}>{f}</option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* Font size */}
-                        <div>
-                          <label className="block text-xs text-muted mb-1">Size (px)</label>
-                          <input
-                            type="number"
-                            value={item.fontSize}
-                            onChange={(e) => updateTypographyItem(gIndex, iIndex, "fontSize", parseInt(e.target.value) || 0)}
-                            min={8}
-                            max={120}
-                            className="w-full px-3 py-2 border border-border rounded-lg text-sm"
-                          />
-                        </div>
-
-                        {/* Font weight */}
-                        <div>
-                          <label className="block text-xs text-muted mb-1">Weight</label>
-                          <select
-                            value={item.fontWeight}
-                            onChange={(e) => updateTypographyItem(gIndex, iIndex, "fontWeight", parseInt(e.target.value))}
-                            className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-white"
-                          >
-                            {fontWeightOptions.map((w) => (
-                              <option key={w} value={w}>{w}</option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* Line height */}
-                        <div>
-                          <label className="block text-xs text-muted mb-1">Line Height</label>
-                          <input
-                            type="number"
-                            value={item.lineHeight}
-                            onChange={(e) => updateTypographyItem(gIndex, iIndex, "lineHeight", parseFloat(e.target.value) || 1)}
-                            min={0.8}
-                            max={3}
-                            step={0.1}
-                            className="w-full px-3 py-2 border border-border rounded-lg text-sm"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Live preview */}
-                      <div className="mt-3 p-3 bg-cream rounded-lg">
-                        <p
-                          style={{
-                            fontFamily: item.fontFamily,
-                            fontSize: `${Math.min(item.fontSize, 48)}px`,
-                            fontWeight: item.fontWeight,
-                            lineHeight: item.lineHeight,
-                          }}
-                          className="text-dark"
-                        >
-                          文字預覽 Abc
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* Typography section removed — not connected to website */}
     </div>
   );
 }
@@ -2615,27 +2483,20 @@ function TourPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: string
   const doSave = useCallback(async (t: TourGroup[], h: string, he: string) => {
     setSaving(true);
     try {
-      await upsertSetting(siteId, "tour_groups", JSON.stringify(t));
-      await upsertSetting(siteId, "tour_header", h);
-      await upsertSetting(siteId, "tour_header_en", he);
-      touchLastUpdated(siteId);
-      onToast?.("導覽梯次：已自動儲存");
+      await batchUpsertSettings(siteId, [
+        { key: "tour_groups", value: JSON.stringify(t) },
+        { key: "tour_header", value: h },
+        { key: "tour_header_en", value: he },
+        { key: "last_updated", value: new Date().toISOString() },
+      ]);
+      onToast?.("導覽梯次：儲存成功");
     } catch (e: any) {
       onToast?.(`導覽梯次：自動儲存失敗：${e?.message || "請檢查網路連線"}`);
     }
     setSaving(false);
   }, [siteId, onToast]);
 
-  // Auto-save with debounce
-  useEffect(() => {
-    if (!loaded) return;
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-    autoSaveTimer.current = setTimeout(() => { doSave(tours, headerText, headerEn); }, 2000);
-    return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
-  }, [tours, headerText, headerEn, loaded, doSave]);
-
   const handleSave = async () => {
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     await doSave(tours, headerText, headerEn);
   };
 
@@ -2658,16 +2519,15 @@ function TourPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: string
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-dark">導覽梯次管理</h2>
-        <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light transition-colors disabled:opacity-50 flex items-center gap-2">
-          {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-          {saving ? "儲存中..." : "儲存變更"}
-        </button>
-      </div>
+      <button data-section-save onClick={handleSave} disabled={saving} className="hidden">儲存</button>
 
       {/* Header text */}
-      <div className="bg-white rounded-xl border border-border p-6 space-y-4">
+      <div className="bg-white rounded-xl border border-border overflow-hidden">
+        <div className="px-6 py-4 border-b border-border">
+          <h3 className="font-semibold text-dark">導覽梯次管理</h3>
+          <p className="text-xs text-muted mt-0.5">展覽導覽的說明文字與梯次列表</p>
+        </div>
+        <div className="p-6 space-y-4">
         <div>
           <label className="block text-sm font-medium text-dark mb-1">說明文字（中文）</label>
           <textarea
@@ -2687,6 +2547,7 @@ function TourPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: string
            
             className="w-full px-3 py-2 border border-border rounded-lg text-sm"
           />
+        </div>
         </div>
       </div>
 
@@ -2922,10 +2783,7 @@ function SettingsPanel({ siteId, siteSlug, onToast }: { siteId: string; siteSlug
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-dark">網站設定</h2>
-        <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light transition-colors disabled:opacity-50 flex items-center gap-2">
-          {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-          {saving ? "儲存中..." : "儲存變更"}
-        </button>
+        <button data-section-save onClick={handleSave} disabled={saving} className="hidden">儲存</button>
       </div>
       <div className="bg-white rounded-xl border border-border p-6 space-y-4">
         <div>
@@ -3084,13 +2942,18 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    requestAnimationFrame(() => setVisible(true));
+    // Animate in
+    setVisible(false);
+    const showTimer = requestAnimationFrame(() => {
+      requestAnimationFrame(() => setVisible(true));
+    });
+    // Auto dismiss after 3s
     const timer = setTimeout(() => {
       setVisible(false);
       setTimeout(onClose, 300);
-    }, 5000);
-    return () => clearTimeout(timer);
-  }, [onClose, isError, isWarning]);
+    }, 3000);
+    return () => { clearTimeout(timer); cancelAnimationFrame(showTimer); };
+  }, [message, onClose]);
 
   const borderColor = isError ? "#dc2626" : isWarning ? "#d97706" : "#22c55e";
   const bgColor = isError ? "#7f1d1d" : isWarning ? "#78350f" : "#14532d";
@@ -3136,6 +2999,11 @@ export default function SiteDashboard({ slugOverride }: { slugOverride?: string 
   const [siteId, setSiteId] = useState<string | null>(null);
   const [siteName, setSiteName] = useState("");
   const [toast, setToast] = useState<string | null>(null);
+  const [toastKey, setToastKey] = useState(0);
+  const [topSaving, setTopSaving] = useState(false);
+  const showToast = useCallback((msg: string) => { setToast(msg); setToastKey(k => k + 1); }, []);
+  // Stop loading ONLY when toast appears (save completed)
+  useEffect(() => { if (toast && topSaving) setTopSaving(false); }, [toast, topSaving]);
   const clearToast = useCallback(() => setToast(null), []);
   const [sectionVisibility, setSectionVisibility] = useState<Record<SectionKey, boolean>>({
     description: true,
@@ -3153,6 +3021,7 @@ export default function SiteDashboard({ slugOverride }: { slugOverride?: string 
         if (site) {
           setSiteId(site.id);
           setSiteName(site.name || "");
+          document.title = `${site.name || siteSlug} 管理系統`;
           // Load saved section visibility
           try {
             const data = await loadSettings(site.id);
@@ -3180,7 +3049,7 @@ export default function SiteDashboard({ slugOverride }: { slugOverride?: string 
       try {
         await upsertSetting(siteId, `section_${key}_visible`, newValue ? "true" : "false");
         const label = sectionLabels[key];
-        setToast(`${label} ${newValue ? "已顯示" : "已隱藏"}`);
+        showToast(`${label} ${newValue ? "已顯示" : "已隱藏"}`);
       } catch (e) { console.error("Failed to save section visibility", e); }
     }
   };
@@ -3264,16 +3133,25 @@ export default function SiteDashboard({ slugOverride }: { slugOverride?: string 
       {/* Main Content */}
       <div className="ml-[220px] flex-1 flex flex-col min-h-screen">
         {/* Top Bar */}
-        <div className="flex items-center justify-between px-8 py-5 border-b border-border bg-white">
+        <div className="sticky top-0 z-40 flex items-center justify-between px-8 py-5 border-b border-border bg-white/95 backdrop-blur-sm">
           <div>
             <h1 className="text-xl font-semibold text-dark">{tabTitles[activeTab]}</h1>
-            <p className="text-sm text-muted">{siteName || siteSlug} · /{siteSlug}</p>
-            <p className="text-xs text-gold mt-1 flex items-center gap-1">
-              <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              修改後請至「設定」頁面點擊發布，更新公開網站
+            <p className="text-sm text-muted mt-0.5 flex items-center gap-1.5">
+              <span className="w-4 h-4 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center shrink-0"><span className="text-gold text-[10px] font-bold">i</span></span>
+              <span><span className="text-gold">❶</span> 修改後點擊「儲存變更」儲存資料　<span className="text-gold">❷</span> 完成所有修改後，至「設定」點擊「重新發布」更新公開網站</span>
             </p>
           </div>
           <div className="flex items-center gap-3">
+            {!["settings", "programme", "venues", "speakers"].includes(activeTab) && <button disabled={topSaving} onClick={() => {
+              const btn = document.querySelector("[data-section-save]") as HTMLButtonElement;
+              if (btn) {
+                setTopSaving(true);
+                btn.click();
+              }
+            }} className="px-5 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light transition-colors disabled:opacity-50 flex items-center gap-2">
+              {topSaving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+              {topSaving ? "儲存中..." : "儲存變更"}
+            </button>}
           </div>
         </div>
 
@@ -3301,22 +3179,22 @@ export default function SiteDashboard({ slugOverride }: { slugOverride?: string 
             </div>
           ) : (
             <>
-              {activeTab === "appearance" && siteId && <AppearancePanel siteId={siteId} onToast={setToast} />}
-              {activeTab === "description" && siteId && <DescriptionPanel siteId={siteId} onToast={setToast} />}
-              {activeTab === "tour" && siteId && <TourPanel siteId={siteId} onToast={setToast} />}
-              {activeTab === "programme" && siteId && <ProgrammePanel siteId={siteId} onToast={setToast} />}
-              {activeTab === "venues" && siteId && <VenuesPanel siteId={siteId} onToast={setToast} />}
-              {activeTab === "speakers" && siteId && <SpeakersPanel siteId={siteId} onToast={setToast} />}
-              {activeTab === "registration" && siteId && <RegistrationSettingsPanel siteId={siteId} onToast={setToast} />}
+              {activeTab === "appearance" && siteId && <AppearancePanel siteId={siteId} onToast={showToast} />}
+              {activeTab === "description" && siteId && <DescriptionPanel siteId={siteId} onToast={showToast} />}
+              {activeTab === "tour" && siteId && <TourPanel siteId={siteId} onToast={showToast} />}
+              {activeTab === "programme" && siteId && <ProgrammePanel siteId={siteId} onToast={showToast} />}
+              {activeTab === "venues" && siteId && <VenuesPanel siteId={siteId} onToast={showToast} />}
+              {activeTab === "speakers" && siteId && <SpeakersPanel siteId={siteId} onToast={showToast} />}
+              {activeTab === "registration" && siteId && <RegistrationSettingsPanel siteId={siteId} onToast={showToast} />}
               {activeTab === "styles" && <StylesPanel siteSlug={siteSlug} />}
-              {activeTab === "settings" && siteId && <SettingsPanel siteId={siteId} siteSlug={siteSlug} onToast={setToast} />}
+              {activeTab === "settings" && siteId && <SettingsPanel siteId={siteId} siteSlug={siteSlug} onToast={showToast} />}
             </>
           )}
         </main>
       </div>
 
       {/* Toast Notification */}
-      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
+      {toast && <Toast key={toastKey} message={toast} onClose={() => setToast(null)} />}
     </div>
   );
 }

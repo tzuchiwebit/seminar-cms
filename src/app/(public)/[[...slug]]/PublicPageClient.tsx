@@ -1,13 +1,16 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { getSiteBySlug, getSiteDays, getSiteSpeakers, getSiteSettings, getSiteVenues, getSiteExhibitions } from "@/lib/pb-queries";
+import pb from "@/lib/pb";
 import HomePage from "./HomePage";
 
 export default function PublicPageClient({ preloadedData }: { preloadedData?: any }) {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isPreview = searchParams.get("preview") === "1";
   const slug = pathname === "/" ? null : pathname.replace(/^\//, "").split("/")[0];
 
   // If preloaded data exists, use it immediately (no loading state)
@@ -27,7 +30,12 @@ export default function PublicPageClient({ preloadedData }: { preloadedData?: an
       const speakers = await getSiteSpeakers(site.id);
       const venues = await getSiteVenues(site.id);
       const exhibitions = await getSiteExhibitions(site.id);
-      setData({ site, days, speakers, settings, venues, exhibitions });
+      let cssVariables = { theme_colors: "[]", theme_typography: "[]" };
+      try {
+        const cssRecord = await pb.collection("css_variables").getFirstListItem(`site="${site.id}"`);
+        cssVariables = { theme_colors: cssRecord.theme_colors || "[]", theme_typography: cssRecord.theme_typography || "[]" };
+      } catch { /* no css_variables */ }
+      setData({ site, days, speakers, settings, venues, exhibitions, cssVariables });
       setLoading(false);
     } catch (err) {
       console.error("Failed to load site:", err);
@@ -41,24 +49,24 @@ export default function PublicPageClient({ preloadedData }: { preloadedData?: an
       return;
     }
 
-    // If no preloaded data, fetch client-side (dev mode fallback)
-    if (!preloadedData) {
+    // Preview mode or no preloaded data → fetch client-side
+    if (isPreview || !preloadedData) {
       fetchAll(slug);
     }
-  }, [slug, router, fetchAll, preloadedData]);
+  }, [slug, router, fetchAll, preloadedData, isPreview]);
 
   if (!slug || loading) {
     return (
-      <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-[#9B7B2F] border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-gold border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
-  if (!data || data.site?.status === "draft") {
+  if (!data || (!isPreview && data.site?.status === "draft")) {
     return (
-      <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center">
-        <p className="text-[#5A554B]">{data?.site?.status === "draft" ? "此網站尚未發布" : "找不到此網站"}</p>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted">{data?.site?.status === "draft" ? "此網站尚未發布" : "找不到此網站"}</p>
       </div>
     );
   }
@@ -72,6 +80,7 @@ export default function PublicPageClient({ preloadedData }: { preloadedData?: an
       slug={slug}
       exhibitions={data.exhibitions}
       venues={data.venues}
+      cssVariables={data.cssVariables}
     />
   );
 }

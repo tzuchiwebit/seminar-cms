@@ -27,10 +27,8 @@ type Site = {
   created: string;
   updated: string;
   lastUpdated: string;
-  _count: {
-    speakers: number;
-    days: number;
-  };
+  eventStartDate: string;
+  eventEndDate: string;
 };
 
 type UserItem = {
@@ -111,31 +109,24 @@ function DashboardContent() {
   const fetchSites = useCallback(async () => {
     try {
       const records = await pb.collection("sites").getFullList();
-      const sitesWithCounts = await Promise.all(
-        records.map(async (site) => {
-          let speakerCount = 0, dayCount = 0, lastUpdated = "";
-          try {
-            const [speakers, days] = await Promise.all([
-              pb.collection("speakers").getList(1, 1, { filter: `site="${site.id}"` }),
-              pb.collection("days").getList(1, 1, { filter: `site="${site.id}"` }),
-            ]);
-            speakerCount = speakers.totalItems;
-            dayCount = days.totalItems;
-          } catch { /* ignore count errors */ }
-          try {
-            const settings = await pb.collection("site_settings").getFullList({ filter: `site="${site.id}" && key="last_updated"` });
-            if (settings.length > 0) lastUpdated = settings[0].value;
-          } catch { /* ignore */ }
-          return {
-            ...site,
-            lastUpdated,
-            _count: {
-              speakers: speakerCount,
-              days: dayCount,
-            },
-          };
-        })
-      );
+      const sitesWithCounts = [];
+      for (const site of records) {
+        let lastUpdated = "", eventStartDate = "", eventEndDate = "";
+        try {
+          const settings = await pb.collection("site_settings").getFullList({ filter: `site="${site.id}"` });
+          for (const s of settings) {
+            if (s.key === "last_updated") lastUpdated = s.value;
+            if (s.key === "eventStartDate") eventStartDate = s.value;
+            if (s.key === "eventEndDate") eventEndDate = s.value;
+          }
+        } catch { /* ignore */ }
+        sitesWithCounts.push({
+          ...site,
+          lastUpdated,
+          eventStartDate,
+          eventEndDate,
+        });
+      }
       setSites(sitesWithCounts as any);
     } catch (err) {
       console.error("Failed to fetch sites:", err);
@@ -197,13 +188,40 @@ function DashboardContent() {
     }
   };
 
+  const [deleting, setDeleting] = useState(false);
   const handleDelete = async (site: Site) => {
+    setDeleting(true);
     try {
-      await pb.collection("sites").delete(site.id);
+      const siteId = site.id;
+      // Cascade delete all related data
+      const collections = ["session_speakers", "papers", "sessions", "days", "speakers", "venues", "exhibitions", "registrations", "site_settings", "uploads"];
+      for (const col of collections) {
+        try {
+          let filter = `site="${siteId}"`;
+          if (col === "session_speakers" || col === "papers") {
+            // These don't have site field — delete via sessions
+            const days = await pb.collection("days").getFullList({ filter: `site="${siteId}"` }).catch(() => []);
+            const dayIds = days.map(d => d.id);
+            if (dayIds.length === 0) continue;
+            const sessions = await pb.collection("sessions").getFullList({ filter: dayIds.map(id => `day="${id}"`).join(" || ") }).catch(() => []);
+            const sessionIds = sessions.map(s => s.id);
+            if (sessionIds.length === 0) continue;
+            filter = sessionIds.map(id => `session="${id}"`).join(" || ");
+          }
+          const records = await pb.collection(col).getFullList({ filter }).catch(() => []);
+          for (const r of records) {
+            await pb.collection(col).delete(r.id).catch(() => {});
+          }
+        } catch { /* skip if collection doesn't exist */ }
+      }
+      // Finally delete the site itself
+      await pb.collection("sites").delete(siteId);
       setShowDeleteModal(null);
       fetchSites();
     } catch (err) {
       console.error("Failed to delete site:", err);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -402,8 +420,8 @@ function DashboardContent() {
                 <tr className="text-left text-xs text-muted uppercase tracking-wider bg-cream/50">
                   <th className="px-6 py-3 font-medium">網站</th>
                   <th className="px-6 py-3 font-medium">狀態</th>
+                  <th className="px-6 py-3 font-medium">活動日期</th>
                   <th className="px-6 py-3 font-medium">最後更新</th>
-                  <th className="px-6 py-3 font-medium">講者</th>
                   <th className="px-6 py-3 font-medium">操作</th>
                 </tr>
               </thead>
@@ -438,14 +456,19 @@ function DashboardContent() {
                               : "bg-muted"
                           }`}
                         />
-                        {site.status}
+                        {site.status === "published" ? "已發布" : "草稿"}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-muted">
-                      {site.lastUpdated ? timeAgo(site.lastUpdated) : "—"}
+                      {site.eventStartDate ? (
+                        <span>
+                          {new Date(site.eventStartDate).toLocaleDateString("zh-TW")}
+                          {site.eventEndDate && <> — {new Date(site.eventEndDate).toLocaleDateString("zh-TW")}</>}
+                        </span>
+                      ) : "—"}
                     </td>
                     <td className="px-6 py-4 text-sm text-muted">
-                      {site._count.speakers}
+                      {site.lastUpdated ? timeAgo(site.lastUpdated) : "—"}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
@@ -456,10 +479,11 @@ function DashboardContent() {
                           編輯
                         </Link>
                         <Link
-                          href={`/${site.slug}`}
-                          className="px-3 py-1.5 text-sm text-dark border border-border rounded-md hover:bg-cream transition-colors"
+                          href={site.status === "draft" ? `/${site.slug}?preview=1` : `/${site.slug}`}
+                          target="_blank"
+                          className="py-1.5 text-sm text-white bg-gold rounded-md hover:bg-gold-light transition-colors w-[100px] text-center inline-block whitespace-nowrap"
                         >
-                          預覽
+                          {site.status === "draft" ? "預覽" : "查看網站"}
                         </Link>
                         <button
                           onClick={() => setShowDeleteModal(site)}
@@ -501,7 +525,24 @@ function DashboardContent() {
             </div>
 
             <div className="px-8 py-6 space-y-5">
-              <div className="grid grid-cols-2 gap-5">
+              {/* Language first */}
+              <div>
+                <label className="block text-sm font-medium text-dark mb-1.5">網站語言</label>
+                <select
+                  value={formLang}
+                  onChange={(e) => setFormLang(e.target.value)}
+                  className="w-full px-3.5 py-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/20 transition-colors bg-white"
+                >
+                  <option value="both">中文 + English（雙語）</option>
+                  <option value="zh">中文</option>
+                  <option value="en">English</option>
+                </select>
+                <p className="text-xs text-muted-light mt-1">決定網站顯示的語言</p>
+              </div>
+
+              {/* Name fields based on language */}
+              <div className={`grid gap-5 ${formLang === "both" ? "grid-cols-2" : "grid-cols-1"}`}>
+                {(formLang === "zh" || formLang === "both") && (
                 <div>
                   <label className="block text-sm font-medium text-dark mb-1.5">網站名稱（中文）</label>
                   <input
@@ -512,18 +553,37 @@ function DashboardContent() {
                     className="w-full px-3.5 py-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/20 transition-colors"
                   />
                 </div>
+                )}
+                {(formLang === "en" || formLang === "both") && (
                 <div>
                   <label className="block text-sm font-medium text-dark mb-1.5">Site Name (English)</label>
                   <input
                     type="text"
                     value={formNameEn}
-                    onChange={(e) => setFormNameEn(e.target.value)}
+                    onChange={(e) => { setFormNameEn(e.target.value); if (formLang === "en") handleNameChange(e.target.value); }}
                     placeholder="e.g. Tzu Chi Annual Gratitude"
                     className="w-full px-3.5 py-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/20 transition-colors"
                   />
                 </div>
+                )}
               </div>
+
+              {/* Status + Slug */}
               <div className="grid grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-sm font-medium text-dark mb-1.5">網址路徑</label>
+                  <div className="flex items-center border border-border rounded-lg overflow-hidden focus-within:border-gold focus-within:ring-1 focus-within:ring-gold/20 transition-colors">
+                    <span className="px-3.5 py-2.5 bg-cream text-sm text-muted border-r border-border shrink-0">/</span>
+                    <input
+                      type="text"
+                      value={formSlug}
+                      onChange={(e) => setFormSlug(e.target.value)}
+                      placeholder="gratitude-2026"
+                      className="w-full px-3.5 py-2.5 text-sm focus:outline-none"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-light mt-1">此網站的公開網址路徑</p>
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-dark mb-1.5">狀態</label>
                   <select
@@ -535,35 +595,6 @@ function DashboardContent() {
                     <option value="published">已發布</option>
                   </select>
                 </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-dark mb-1.5">網址路徑</label>
-                <div className="flex items-center border border-border rounded-lg overflow-hidden focus-within:border-gold focus-within:ring-1 focus-within:ring-gold/20 transition-colors">
-                  <span className="px-3.5 py-2.5 bg-cream text-sm text-muted border-r border-border shrink-0">
-                    /
-                  </span>
-                  <input
-                    type="text"
-                    value={formSlug}
-                    onChange={(e) => setFormSlug(e.target.value)}
-                    placeholder="gratitude-2026"
-                    className="w-full px-3.5 py-2.5 text-sm focus:outline-none"
-                  />
-                </div>
-                <p className="text-xs text-muted-light mt-1">此網站的公開網址路徑</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-dark mb-1.5">網站語言</label>
-                <select
-                  value={formLang}
-                  onChange={(e) => setFormLang(e.target.value)}
-                  className="w-full px-3.5 py-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/20 transition-colors bg-white"
-                >
-                  <option value="en">English</option>
-                  <option value="zh">中文</option>
-                  <option value="both">中文 + English（雙語）</option>
-                </select>
-                <p className="text-xs text-muted-light mt-1">決定網站顯示的語言</p>
               </div>
               <div className="grid grid-cols-2 gap-5">
                 <div>
@@ -621,18 +652,27 @@ function DashboardContent() {
               </p>
             </div>
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border bg-cream/30">
-              <button
-                onClick={() => setShowDeleteModal(null)}
-                className="px-4 py-2 text-sm font-medium text-muted border border-border rounded-lg hover:bg-cream transition-colors"
-              >
-                取消
-              </button>
-              <button
-                onClick={() => handleDelete(showDeleteModal)}
-                className="px-5 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
-              >
-                確認刪除
-              </button>
+              {deleting ? (
+                <div className="flex items-center gap-3 py-1">
+                  <div className="w-5 h-5 border-2 border-red-300 border-t-red-600 rounded-full animate-spin" />
+                  <span className="text-sm text-muted">正在刪除所有相關資料，請稍候...</span>
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setShowDeleteModal(null)}
+                    className="px-4 py-2 text-sm font-medium text-muted border border-border rounded-lg hover:bg-cream transition-colors"
+                  >
+                    取消
+                  </button>
+                  <button
+                    onClick={() => handleDelete(showDeleteModal)}
+                    className="px-5 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+                  >
+                    確認刪除
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

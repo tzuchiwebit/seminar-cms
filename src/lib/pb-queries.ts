@@ -80,7 +80,7 @@ export async function getSiteDays(siteId: string) {
 export async function getSiteSpeakers(siteId: string) {
   // Just fetch speakers — session/paper data comes from getSiteDays
   const speakers = await pb.collection("speakers").getFullList({
-    filter: `site="${siteId}"`,
+    filter: `site="${siteId}" && status="confirmed"`,
     sort: "sortOrder",
   });
 
