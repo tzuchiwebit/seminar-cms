@@ -1,12 +1,20 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { getSiteBySlug, getSiteDays, getSiteSpeakers, getSiteSettings, getSiteVenues, getSiteExhibitions } from "@/lib/pb-queries";
 import pb from "@/lib/pb";
 import HomePage from "./HomePage";
 
 export default function PublicPageClient({ preloadedData }: { preloadedData?: any }) {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center"><div className="w-8 h-8 border-2 border-gold border-t-transparent rounded-full animate-spin" /></div>}>
+      <PublicPageInner preloadedData={preloadedData} />
+    </Suspense>
+  );
+}
+
+function PublicPageInner({ preloadedData }: { preloadedData?: any }) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
