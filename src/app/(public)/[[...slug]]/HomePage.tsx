@@ -846,7 +846,7 @@ function VenueLocation({ venue, index, lang }: { venue: any; index: number; lang
 
   const slideDir = isImageLeft ? "translate-x-8" : "-translate-x-8";
   const textPanel = (
-    <div className={`w-full md:w-1/2 flex flex-col justify-center px-6 md:px-10 lg:px-16 py-8 md:py-0 gap-2 md:gap-3 bg-background ${!isImageLeft ? "order-2 md:order-1" : ""} transition-all duration-700 delay-200 ${loc.isVisible ? "opacity-100 translate-x-0" : `opacity-0 ${slideDir}`}`}>
+    <div className={`w-full md:w-1/2 flex flex-col justify-center px-6 md:px-10 lg:px-16 py-8 md:py-0 gap-2 md:gap-3 bg-cream ${!isImageLeft ? "order-2 md:order-1" : ""} transition-all duration-700 delay-200 ${loc.isVisible ? "opacity-100 translate-x-0" : `opacity-0 ${slideDir}`}`}>
       <span className="font-inter text-gold/20 text-[48px] md:text-[72px] font-extralight leading-none">{number}</span>
       <h3 className="font-serif text-dark text-[22px] md:text-[28px] lg:text-[32px] font-bold leading-tight">
         {title}
