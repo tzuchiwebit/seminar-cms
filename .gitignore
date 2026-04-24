@@ -1,9 +1,15 @@
 node_modules/
 .next/
 .env
+.env.local
+.env.*.local
 /uploads/
 *.tsbuildinfo
 next-env.d.ts
+
+# Test / scratch artifacts
+.playwright-mcp/
+drust-test-*.png
 
 # Build output
 out/
