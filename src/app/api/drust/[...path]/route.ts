@@ -18,8 +18,9 @@ async function forward(req: NextRequest, path: string[]) {
     headers: { "Authorization": `Bearer ${DRUST_TOKEN}` },
   };
   if (req.method !== "GET" && req.method !== "HEAD" && req.method !== "DELETE") {
-    const body = await req.text();
-    if (body) {
+    // Use arrayBuffer (not text) so multipart/form-data file uploads survive intact.
+    const body = await req.arrayBuffer();
+    if (body.byteLength > 0) {
       init.body = body;
       const ct = req.headers.get("content-type");
       if (ct) (init.headers as Record<string, string>)["Content-Type"] = ct;
