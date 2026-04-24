@@ -52,7 +52,7 @@ Next.js 15 (App Router, static export), TypeScript (strict), Tailwind CSS v4, Po
 
 Key relationships: Site → Day → Session → SessionSpeaker (M-to-M with role), Session → Paper, Site → Speaker/Venue/Exhibition/Registration.
 
-Key site_settings keys: `deploy_hook_url` (Cloudflare deploy hook), `site_language` (`en`/`zh`/`both`), `section_*_visible` (toggle sections), `registration_google_form_url`.
+Key site_settings keys: `site_language` (`en`/`zh`/`both`), `section_*_visible` (toggle sections), `registration_google_form_url`.
 
 ## Environment Variables
 
@@ -64,8 +64,6 @@ Cream: #F5F1EB, Dark: #1A1816, Gold: #9B7B2F, Green: #3D5A3E, Sidebar: #3D3A36, 
 
 ## Deployment
 
-Static export to Cloudflare Pages. Build command: `npm run build`, output directory: `out`.
+Runtime mode on Cloudflare Pages (Functions). Build via `@cloudflare/next-on-pages`: build command `npx @cloudflare/next-on-pages@1`, output directory `.vercel/output/static`. Public pages render at request time and pull live data from Drust on every visit, so admin saves are immediately visible — no republish step.
 
-**Deploy hook:** Admin clicks 「重新發布」in 設定 → triggers Cloudflare Pages rebuild via `deploy_hook_url` in site_settings. Public site updates in ~1-2 minutes.
-
-**Important:** Public pages are pre-built. Changes in PocketBase (via admin CMS) only appear on the public site after clicking 「重新發布」. Dev mode (`npm run dev`) fetches live data for preview.
+Required Cloudflare Pages environment variables: `DRUST_TOKEN` (encrypted), `DRUST_BASE_URL`, `NEXT_PUBLIC_DB_BACKEND` (`drust` or `pb`), `NEXT_PUBLIC_POCKETBASE_URL`.
