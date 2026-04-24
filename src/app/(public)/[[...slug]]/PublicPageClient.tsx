@@ -2,8 +2,7 @@
 
 import { Suspense, useState, useEffect, useCallback } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { getSiteBySlug, getSiteDays, getSiteSpeakers, getSiteSettings, getSiteVenues, getSiteExhibitions, currentBackend } from "@/lib/db";
-import pb from "@/lib/pb";
+import { getSiteBySlug, getSiteDays, getSiteSpeakers, getSiteSettings, getSiteVenues, getSiteExhibitions, getSiteCssVariables, currentBackend } from "@/lib/db";
 import HomePage from "./HomePage";
 
 export default function PublicPageClient({ preloadedData }: { preloadedData?: any }) {
@@ -38,11 +37,7 @@ function PublicPageInner({ preloadedData }: { preloadedData?: any }) {
       const speakers = await getSiteSpeakers(site.id);
       const venues = await getSiteVenues(site.id);
       const exhibitions = await getSiteExhibitions(site.id);
-      let cssVariables = { theme_colors: "[]", theme_typography: "[]" };
-      try {
-        const cssRecord = await pb.collection("css_variables").getFirstListItem(`site="${site.id}"`);
-        cssVariables = { theme_colors: cssRecord.theme_colors || "[]", theme_typography: cssRecord.theme_typography || "[]" };
-      } catch { /* no css_variables */ }
+      const cssVariables = await getSiteCssVariables(site.id);
       setData({ site, days, speakers, settings, venues, exhibitions, cssVariables });
       setLoading(false);
     } catch (err) {

@@ -163,6 +163,21 @@ export async function getSiteExhibitions(siteId: string) {
   return rows.map(toPbExhibition);
 }
 
+export async function getSiteCssVariables(siteId: string): Promise<{ theme_colors: string; theme_typography: string }> {
+  const rows = await drustQueryObjects<{ theme_colors: string; theme_typography: string }>(
+    `SELECT c.theme_colors, c.theme_typography FROM css_variables c
+     JOIN sites s ON c.site = s.id
+     WHERE s.pb_id = ${sqlStr(siteId)}
+     ORDER BY c.pb_created DESC
+     LIMIT 1`
+  );
+  const r = rows[0];
+  return {
+    theme_colors: r?.theme_colors || "[]",
+    theme_typography: r?.theme_typography || "[]",
+  };
+}
+
 export async function getSiteRegistrations(siteId: string) {
   const rows = await drustQueryObjects(
     `SELECT r.*, s.pb_id AS site_pb_id FROM registrations r

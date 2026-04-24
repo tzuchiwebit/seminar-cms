@@ -23,5 +23,6 @@ export const getSiteSpeakers = impl.getSiteSpeakers;
 export const getSiteVenues = impl.getSiteVenues;
 export const getSiteExhibitions = impl.getSiteExhibitions;
 export const getSiteRegistrations = impl.getSiteRegistrations;
+export const getSiteCssVariables = impl.getSiteCssVariables;
 
 export const currentBackend: Backend = BACKEND;

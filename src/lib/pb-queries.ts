@@ -106,6 +106,18 @@ export async function getSiteExhibitions(siteId: string) {
   });
 }
 
+export async function getSiteCssVariables(siteId: string): Promise<{ theme_colors: string; theme_typography: string }> {
+  try {
+    const r = await pb.collection("css_variables").getFirstListItem(`site="${siteId}"`);
+    return {
+      theme_colors: r.theme_colors || "[]",
+      theme_typography: r.theme_typography || "[]",
+    };
+  } catch {
+    return { theme_colors: "[]", theme_typography: "[]" };
+  }
+}
+
 export async function getSiteRegistrations(siteId: string) {
   return pb.collection("registrations").getFullList({
     filter: `site="${siteId}"`,
