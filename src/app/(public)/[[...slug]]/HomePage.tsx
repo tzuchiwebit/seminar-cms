@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { CroppedPhoto } from "@/components/CroppedPhoto";
 import {
   Calendar,
   MapPin,
@@ -302,6 +303,15 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
       name: s.name,
       nameCn: s.nameCn || null,
       photo: s.photo || null,
+      photoCrop: (() => {
+        const raw = s.photoCrop;
+        if (!raw) return null;
+        try {
+          const obj = typeof raw === "string" ? JSON.parse(raw) : raw;
+          if (obj && typeof obj.zoom === "number" && typeof obj.x === "number" && typeof obj.y === "number") return obj;
+        } catch {}
+        return null;
+      })(),
       affiliation: s.affiliation || "",
       affiliationZh: s.affiliationZh || undefined,
       title: s.title_field || s.title || "",
@@ -696,18 +706,25 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
                 key={speaker.name}
                 onClick={() => settings.speakers_see_more !== "false" && setSelectedSpeaker(speaker)}
                 style={{ transitionDelay: speakersSection.isVisible ? `${300 + idx * 80}ms` : "0ms" }}
-                className={`group bg-white rounded-xl border border-border overflow-hidden text-left transition-all duration-500 flex flex-col ${settings.speakers_see_more !== "false" ? "hover:shadow-lg cursor-pointer" : "cursor-default"} ${speakersSection.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
+                className={`group bg-white rounded-xl border border-border text-center transition-all duration-500 flex flex-col items-center ${settings.speakers_see_more !== "false" ? "hover:shadow-lg cursor-pointer" : "cursor-default"} ${speakersSection.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
               >
-                <div className="w-full aspect-[4/3] bg-cream-dark overflow-hidden">
-                  {speaker.photo ? (
-                    <img src={speaker.photo} alt={speaker.name} className="w-full h-full object-cover object-top block" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Users className="w-7 h-7 text-muted-light/30" />
-                    </div>
-                  )}
+                <div className="pt-6 pb-3 flex justify-center">
+                  <div className="w-[150px] h-[150px] rounded-full border-[3px] border-gold p-1">
+                    {speaker.photo ? (
+                      <CroppedPhoto
+                        src={speaker.photo}
+                        crop={speaker.photoCrop}
+                        className="w-full h-full rounded-full bg-cream-dark"
+                        alt={speaker.name}
+                      />
+                    ) : (
+                      <div className="w-full h-full rounded-full bg-cream-dark flex items-center justify-center">
+                        <Users className="w-7 h-7 text-muted-light/30" />
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="px-4 pt-3.5 pb-3">
+                <div className="px-4 pb-4">
                   <p className="font-serif text-dark text-[14px] font-bold leading-snug min-h-[1.3em]">
                     {speaker.name}
                   </p>

@@ -1,6 +1,7 @@
 "use client";
 
 import { X, Users } from "lucide-react";
+import { CroppedPhoto } from "@/components/CroppedPhoto";
 
 interface Speaker {
   name: string;
@@ -9,6 +10,7 @@ interface Speaker {
   title: string;
   titleZh?: string;
   photo?: string;
+  photoCrop?: { zoom: number; x: number; y: number } | null;
   bio?: string;
   topicZh?: string;
   topicEn?: string;
@@ -48,11 +50,18 @@ export default function SpeakerModal({ speaker, onClose, lang = "zh" }: SpeakerM
 
         {/* Left: Photo + Name */}
         <div className="md:w-[280px] shrink-0 bg-cream-dark p-8 flex flex-col items-center justify-center text-center">
-          <div className="w-32 h-32 rounded-full bg-cream overflow-hidden flex items-center justify-center mb-6">
+          <div className="mb-6">
             {speaker.photo ? (
-              <img src={speaker.photo} alt={speaker.name} className="w-full h-full object-cover" />
+              <CroppedPhoto
+                src={speaker.photo}
+                crop={speaker.photoCrop}
+                className="w-32 h-32 rounded-full bg-cream"
+                alt={speaker.name}
+              />
             ) : (
-              <Users className="w-12 h-12 text-muted-light/40" />
+              <div className="w-32 h-32 rounded-full bg-cream flex items-center justify-center">
+                <Users className="w-12 h-12 text-muted-light/40" />
+              </div>
             )}
           </div>
           <h3 className="font-serif text-dark text-2xl font-bold mb-1">

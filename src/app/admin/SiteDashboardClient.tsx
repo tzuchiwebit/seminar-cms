@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, type PointerEvent as ReactPointerEvent } from "react";
 import Link from "next/link";
 
 import pb from "@/lib/pb";
 import { useAuth } from "@/hooks/useAuth";
+import { CroppedPhoto } from "@/components/CroppedPhoto";
 
 async function upsertSetting(siteId: string, key: string, value: string) {
   try {
@@ -622,6 +623,200 @@ function DescriptionPanel({ siteId, onToast }: { siteId: string; onToast?: (msg:
   );
 }
 
+/* ── Circle Photo Crop Modal (Instagram-style) ── */
+// photoCrop may come back from PocketBase as either a JSON string (Text field) or a parsed object (JSON field).
+function parseCrop(raw: any): { zoom: number; x: number; y: number } | null {
+  if (!raw) return null;
+  try {
+    const obj = typeof raw === "string" ? JSON.parse(raw) : raw;
+    if (obj && typeof obj.zoom === "number" && typeof obj.x === "number" && typeof obj.y === "number") return obj;
+  } catch {}
+  return null;
+}
+
+// PocketHost file size limit is 5 MiB. Downscale large images so the original fits under the limit
+// while staying large enough to support crop re-editing at any display size.
+async function downscaleImage(file: File, maxDim = 2048, quality = 0.9): Promise<File> {
+  // Fast path: small files skip the canvas round-trip.
+  if (file.size < 4.5 * 1024 * 1024) {
+    const dims = await new Promise<{ w: number; h: number }>((resolve, reject) => {
+      const i = new window.Image();
+      i.onload = () => { resolve({ w: i.naturalWidth, h: i.naturalHeight }); URL.revokeObjectURL(i.src); };
+      i.onerror = () => { reject(new Error("load")); URL.revokeObjectURL(i.src); };
+      i.src = URL.createObjectURL(file);
+    }).catch(() => null);
+    if (dims && Math.max(dims.w, dims.h) <= maxDim) return file;
+  }
+  const objURL = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new window.Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error("load"));
+      i.src = objURL;
+    });
+    const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.round(img.naturalWidth * scale);
+    const h = Math.round(img.naturalHeight * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, 0, 0, w, h);
+    const blob = await new Promise<Blob | null>(r => canvas.toBlob(r, "image/jpeg", quality));
+    if (!blob) return file;
+    const name = file.name.replace(/\.[^.]+$/, "") + ".jpg";
+    return new File([blob], name, { type: "image/jpeg" });
+  } finally {
+    URL.revokeObjectURL(objURL);
+  }
+}
+
+// Crop params are percentages of the container (x, y), so the same {zoom, x, y} renders
+// identically at any display size. Image size + pan respect the source aspect ratio, so
+// non-square sources can be repositioned even at zoom=1 (where object-cover normally crops).
+function PhotoCropModal({ src, initialCrop, onConfirm, onClose }: {
+  src: string;
+  initialCrop?: { zoom: number; x: number; y: number };
+  onConfirm: (crop: { zoom: number; x: number; y: number }) => void;
+  onClose: () => void;
+}) {
+  const [zoom, setZoom] = useState(initialCrop?.zoom ?? 1);
+  const [pan, setPan] = useState({ x: initialCrop?.x ?? 0, y: initialCrop?.y ?? 0 });
+  const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
+  const dragStart = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const img = new window.Image();
+    img.onload = () => { if (!cancelled) setNatural({ w: img.naturalWidth, h: img.naturalHeight }); };
+    img.src = src;
+    return () => { cancelled = true; };
+  }, [src]);
+
+  const aspect = natural && natural.h > 0 ? natural.w / natural.h : 1;
+  const coverW = Math.max(aspect, 1);
+  const coverH = Math.max(1 / aspect, 1);
+  const maxPanX = Math.max(0, (coverW * zoom - 1) * 50);
+  const maxPanY = Math.max(0, (coverH * zoom - 1) * 50);
+  const clamp = (v: number, m: number) => Math.max(-m, Math.min(m, v));
+
+  // Re-clamp pan when aspect/zoom change (e.g. natural dims arrive, or user zooms out)
+  useEffect(() => {
+    setPan(p => {
+      const cx = clamp(p.x, maxPanX);
+      const cy = clamp(p.y, maxPanY);
+      return (cx === p.x && cy === p.y) ? p : { x: cx, y: cy };
+    });
+  }, [maxPanX, maxPanY]);
+
+  const imgW = coverW * zoom * 100;
+  const imgH = coverH * zoom * 100;
+  const imgLeft = (100 - imgW) / 2 + pan.x;
+  const imgTop = (100 - imgH) / 2 + pan.y;
+
+  const onPointerDown = (e: ReactPointerEvent) => {
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    dragStart.current = { px: e.clientX, py: e.clientY, ox: pan.x, oy: pan.y };
+  };
+  const onPointerMove = (e: ReactPointerEvent) => {
+    if (!dragStart.current) return;
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0) return;
+    const { px, py, ox, oy } = dragStart.current;
+    const dxPct = ((e.clientX - px) / rect.width) * 100;
+    const dyPct = ((e.clientY - py) / rect.height) * 100;
+    setPan({
+      x: clamp(ox + dxPct, maxPanX),
+      y: clamp(oy + dyPct, maxPanY),
+    });
+  };
+  const onPointerUp = (e: ReactPointerEvent) => {
+    dragStart.current = null;
+    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
+  };
+
+  const onZoomChange = (newZoom: number) => {
+    const newMaxX = Math.max(0, (coverW * newZoom - 1) * 50);
+    const newMaxY = Math.max(0, (coverH * newZoom - 1) * 50);
+    setZoom(newZoom);
+    setPan({ x: clamp(pan.x, newMaxX), y: clamp(pan.y, newMaxY) });
+  };
+
+  const handleConfirm = () => onConfirm({ zoom, x: pan.x, y: pan.y });
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="relative bg-white rounded-2xl p-8 flex flex-col items-center gap-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <h3 className="font-serif text-dark text-lg font-bold">調整照片位置</h3>
+
+        <div
+          ref={containerRef}
+          className="w-56 h-56 rounded-full overflow-hidden border-[3px] border-gold bg-cream-dark cursor-grab active:cursor-grabbing relative select-none"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          style={{ touchAction: "none" }}
+        >
+          <img
+            src={src}
+            alt="crop preview"
+            draggable={false}
+            className="pointer-events-none absolute block"
+            style={{
+              width: `${imgW}%`,
+              height: `${imgH}%`,
+              left: `${imgLeft}%`,
+              top: `${imgTop}%`,
+              maxWidth: "none",
+            }}
+          />
+        </div>
+
+        <div className="flex items-center gap-3 w-64">
+          <span className="text-xs text-muted">縮小</span>
+          <input
+            type="range"
+            min="1"
+            max="4"
+            step="0.05"
+            value={zoom}
+            onChange={(e) => onZoomChange(parseFloat(e.target.value))}
+            className="flex-1 accent-gold h-1.5"
+          />
+          <span className="text-xs text-muted">放大</span>
+        </div>
+
+        <p className="text-xs text-muted">拖曳圓形區域調整位置，滑桿控制縮放</p>
+
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-6 py-2 bg-cream border border-border text-dark rounded-lg text-sm font-medium hover:bg-cream-dark transition-colors"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            className="px-6 py-2 bg-gold text-white rounded-lg text-sm font-medium hover:bg-gold-light transition-colors"
+          >
+            完成
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: string) => void }) {
   const [speakers, setSpeakers] = useState<any[]>([]);
   const [filter, setFilter] = useState("All");
@@ -631,6 +826,8 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
   const [talkTitles, setTalkTitles] = useState<{ en: string; zh: string }[]>([{ en: "", zh: "" }]);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [savedCrop, setSavedCrop] = useState<{ zoom: number; x: number; y: number }>({ zoom: 1, x: 0, y: 0 });
+  const [showCropModal, setShowCropModal] = useState(false);
   const [showSeeMore, setShowSeeMore] = useState(true);
   const [speakerErrors, setSpeakerErrors] = useState<string[]>([]);
   const [speakersLoading, setSpeakersLoading] = useState(true);
@@ -676,8 +873,10 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
     setEditing(null);
     setForm({ name: "", nameCn: "", affiliation: "", affiliationZh: "", title: "", titleZh: "", bio: "", status: "pending" });
     setTalkTitles([{ en: "", zh: "" }]);
+    if (photoPreview?.startsWith("blob:")) URL.revokeObjectURL(photoPreview);
     setPhotoFile(null);
     setPhotoPreview(null);
+    setSavedCrop({ zoom: 1, x: 0, y: 0 });
     setSpeakerErrors([]);
     setShowForm(true);
   };
@@ -702,8 +901,11 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
     } catch {
       setTalkTitles([{ en: "", zh: "" }]);
     }
+    if (photoPreview?.startsWith("blob:")) URL.revokeObjectURL(photoPreview);
     setPhotoFile(null);
     setPhotoPreview(item.photo ? pb.files.getURL(item, item.photo) : null);
+    // photoCrop field may be Text (string) or JSON (already-parsed object) depending on schema type
+    setSavedCrop(parseCrop(item.photoCrop) ?? { zoom: 1, x: 0, y: 0 });
     setShowForm(true);
   };
 
@@ -741,6 +943,7 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
       formData.append("status", form.status);
       formData.append("last_updated", new Date().toISOString());
       if (photoFile) formData.append("photo", photoFile);
+      formData.append("photoCrop", JSON.stringify(savedCrop));
       if (editing) {
         await pb.collection("speakers").update(editing.id, formData);
       } else {
@@ -752,11 +955,11 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
       onToast?.(editing ? "儲存成功" : "新增成功");
       fetchSpeakers();
     } catch (e: any) {
-      console.error("Failed to save speaker", e);
-      if (e?.data) {
-        const fieldErrors = Object.entries(e.data)
-          .filter(([k]) => k !== "code" && k !== "message")
-          .map(([k, v]: any) => v?.message ? `${k}: ${v.message}` : `${k}`);
+      console.error("Failed to save speaker", e, "response:", e?.response, "data:", e?.data);
+      // PocketBase SDK: e.data is the full response body { code, message, data: { field: { code, message } } }
+      const fieldMap = e?.response?.data ?? e?.data?.data ?? null;
+      if (fieldMap && typeof fieldMap === "object") {
+        const fieldErrors = Object.entries(fieldMap).map(([k, v]: any) => v?.message ? `${k}: ${v.message}` : k);
         if (fieldErrors.length > 0) {
           onToast?.(`請檢查：${fieldErrors.join("、")}`);
           setSaving(false);
@@ -827,7 +1030,14 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
         </button>
       </div>
       <div className="bg-white rounded-xl border border-border overflow-hidden">
-        <table className="w-full">
+        <table className="w-full table-fixed">
+          <colgroup>
+            <col className="w-[20%]" />
+            <col className="w-[25%]" />
+            <col className="w-[35%]" />
+            <col className="w-[10%]" />
+            <col className="w-[10%]" />
+          </colgroup>
           <thead>
             <tr className="text-left text-xs text-muted uppercase tracking-wider bg-cream/50">
               {[
@@ -836,8 +1046,8 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
                 { key: "title", label: "職稱" },
                 { key: "status", label: "狀態" },
               ].map(col => (
-                <th key={col.key} className="px-6 py-3 font-medium cursor-pointer select-none hover:text-dark transition-colors" onClick={() => toggleSort(col.key)}>
-                  <span className="flex items-center gap-1">
+                <th key={col.key} className={`px-4 py-3 font-medium cursor-pointer select-none hover:text-dark transition-colors ${col.key === "status" ? "text-center" : ""}`} onClick={() => toggleSort(col.key)}>
+                  <span className={`flex items-center gap-1 ${col.key === "status" ? "justify-center" : ""}`}>
                     {col.label}
                     <span className="inline-flex flex-col text-[8px] leading-none">
                       <span className={sortKey === col.key && sortDir === "asc" ? "text-gold" : "text-muted/30"}>▲</span>
@@ -846,35 +1056,39 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
                   </span>
                 </th>
               ))}
-              <th className="px-6 py-3 font-medium text-right">操作</th>
+              <th className="px-4 py-3 font-medium text-right">操作</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {sorted.map((s: any) => (
               <tr key={s.id} className="hover:bg-cream/30">
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-3">
+                <td className="px-4 py-4 overflow-hidden max-w-0">
+                  <div className="flex items-center gap-3 min-w-0">
                     {s.photo ? (
-                      <img src={pb.files.getURL(s, s.photo)} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
+                      <CroppedPhoto
+                        src={pb.files.getURL(s, s.photo)}
+                        crop={parseCrop(s.photoCrop)}
+                        className="w-9 h-9 rounded-full shrink-0"
+                      />
                     ) : (
-                      <div className="w-9 h-9 rounded-full bg-cream-dark flex items-center justify-center text-xs text-muted font-medium">{(s.name || "?").charAt(0)}</div>
+                      <div className="w-9 h-9 rounded-full bg-cream-dark flex items-center justify-center text-xs text-muted font-medium shrink-0">{(s.name || "?").charAt(0)}</div>
                     )}
-                    <div>
-                      <span className="text-xs font-medium text-dark">{s.name}</span>
-                      {s.nameCn && <p className="text-xs text-muted">{s.nameCn}</p>}
+                    <div className="min-w-0">
+                      <span className="text-xs font-medium text-dark block truncate">{s.name}</span>
+                      {s.nameCn && <p className="text-xs text-muted truncate">{s.nameCn}</p>}
                     </div>
                   </div>
                 </td>
-                <td className="px-6 py-4 text-xs">
-                  <span className="text-dark font-medium">{s.affiliation}</span>
-                  {s.affiliationZh && <p className="text-muted">{s.affiliationZh}</p>}
+                <td className="px-4 py-4 text-xs overflow-hidden max-w-0">
+                  <span className="text-dark font-medium block truncate" title={s.affiliation}>{s.affiliation}</span>
+                  {s.affiliationZh && <p className="text-muted truncate" title={s.affiliationZh}>{s.affiliationZh}</p>}
                 </td>
-                <td className="px-6 py-4 text-xs">
-                  <span className="text-dark font-medium">{s.title_field || s.title}</span>
-                  {s.titleZh && <p className="text-muted">{s.titleZh}</p>}
+                <td className="px-4 py-4 text-xs overflow-hidden max-w-0">
+                  <span className="text-dark font-medium block truncate" title={s.title_field || s.title}>{s.title_field || s.title}</span>
+                  {s.titleZh && <p className="text-muted truncate" title={s.titleZh}>{s.titleZh}</p>}
                 </td>
-                <td className="px-6 py-4"><StatusBadge status={s.status || "pending"} /></td>
-                <td className="px-6 py-4">
+                <td className="px-4 py-4 text-center"><StatusBadge status={s.status || "pending"} /></td>
+                <td className="px-4 py-4">
                   <div className="flex items-center justify-end gap-2">
                     <button onClick={() => openEdit(s)} className="p-1.5 text-muted hover:text-gold rounded-md hover:bg-gold/10"><Pencil className="w-4 h-4" /></button>
                     <button onClick={() => handleDelete(s.id)} className="p-1.5 text-muted hover:text-red-600 rounded-md hover:bg-red-50"><Trash2 className="w-4 h-4" /></button>
@@ -908,8 +1122,13 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
                 {/* Photo */}
                 <div className="shrink-0 flex flex-col items-center gap-2">
                   {photoPreview ? (
-                    <div className="w-24 h-24 rounded-full overflow-hidden border border-border">
-                      <img src={photoPreview} alt="photo" className="w-full h-full object-cover" />
+                    <div className="cursor-pointer" onClick={() => setShowCropModal(true)}>
+                      <CroppedPhoto
+                        src={photoPreview}
+                        crop={savedCrop}
+                        className="w-24 h-24 rounded-full border-[3px] border-gold"
+                        alt="photo"
+                      />
                     </div>
                   ) : (
                     <div className="w-24 h-24 rounded-full bg-cream-dark flex items-center justify-center text-muted text-sm">
@@ -917,16 +1136,41 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
                     </div>
                   )}
                   <label className="px-3 py-1.5 bg-cream border border-border rounded-lg text-xs text-dark cursor-pointer hover:bg-cream-dark transition-colors">
-                    上傳照片
-                    <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => {
+                    {photoPreview ? "更換照片" : "上傳照片"}
+                    <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={async (e) => {
                       const file = e.target.files?.[0];
-                      if (file) {
-                        setPhotoFile(file);
-                        setPhotoPreview(URL.createObjectURL(file));
+                      e.target.value = "";
+                      if (!file) return;
+                      try {
+                        const compressed = await downscaleImage(file);
+                        if (photoPreview?.startsWith("blob:")) URL.revokeObjectURL(photoPreview);
+                        setPhotoFile(compressed);
+                        setPhotoPreview(URL.createObjectURL(compressed));
+                        setSavedCrop({ zoom: 1, x: 0, y: 0 });
+                        setTimeout(() => setShowCropModal(true), 100);
+                      } catch (err) {
+                        console.error("[photo upload]", err);
+                        onToast?.("照片處理失敗，請換一張再試");
                       }
                     }} />
                   </label>
+                  {photoPreview && (
+                    <button type="button" onClick={() => setShowCropModal(true)} className="text-[11px] text-gold hover:text-gold-light transition-colors">
+                      調整位置
+                    </button>
+                  )}
                 </div>
+                {showCropModal && photoPreview && (
+                  <PhotoCropModal
+                    src={photoPreview}
+                    initialCrop={savedCrop}
+                    onConfirm={(crop) => {
+                      setSavedCrop(crop);
+                      setShowCropModal(false);
+                    }}
+                    onClose={() => setShowCropModal(false)}
+                  />
+                )}
                 {/* Name + Affiliation + Title */}
                 <div className="flex-1 space-y-4">
                   <div className="grid grid-cols-2 gap-4">
@@ -1977,8 +2221,8 @@ function VenuesPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: stri
         {!venuesLoading && venues.map((v: any) => (
           <div key={v.id} className="bg-white rounded-xl border border-border overflow-hidden">
             {v.image && (
-              <div className="w-full h-36 bg-cream-dark overflow-hidden">
-                <img src={pb.files.getURL(v, v.image)} alt={v.name} className="w-full h-full object-cover" />
+              <div className="w-full aspect-[32/15] bg-cream-dark overflow-hidden">
+                <img src={pb.files.getURL(v, v.image)} alt={v.name} className="w-full h-full object-cover object-center" />
               </div>
             )}
             <div className="p-6">
@@ -2005,17 +2249,20 @@ function VenuesPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: stri
 
       {showForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-4xl space-y-4">
-            <h3 className="text-lg font-semibold text-dark">{editing ? "編輯場地" : "新增場地"}</h3>
+          <div className="bg-white rounded-xl w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
+            <div className="px-6 pt-6 pb-3 shrink-0">
+              <h3 className="text-lg font-semibold text-dark">{editing ? "編輯場地" : "新增場地"}</h3>
+            </div>
+            <div className="px-6 pb-6 overflow-y-auto flex-1 space-y-4">
             {/* Image Upload */}
             <div>
               <label className="block text-sm font-medium text-dark mb-1">場地圖片</label>
               {(imagePreview || form.image) ? (
-                <div className="w-full h-40 rounded-lg overflow-hidden border border-border mb-2">
-                  <img src={imagePreview || form.image} alt="venue" className="w-full h-full object-cover" />
+                <div className="w-full aspect-[32/15] rounded-lg overflow-hidden border border-border mb-2">
+                  <img src={imagePreview || form.image} alt="venue" className="w-full h-full object-cover object-center" />
                 </div>
               ) : (
-                <div className="w-full h-40 rounded-lg border border-dashed border-border flex items-center justify-center text-muted text-sm mb-2">
+                <div className="w-full aspect-[32/15] rounded-lg border border-dashed border-border flex items-center justify-center text-muted text-sm mb-2">
                   尚未上傳圖片
                 </div>
               )}
@@ -2059,7 +2306,8 @@ function VenuesPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: stri
               <label className="block text-sm font-medium text-dark mb-1">類型 Type</label>
               <input type="text" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
             </div>
-            <div className="flex justify-end gap-3">
+            </div>
+            <div className="px-6 py-4 border-t border-border shrink-0 flex justify-end gap-3">
               <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-muted" disabled={saving}>取消</button>
               <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-gold text-white text-sm rounded-lg disabled:opacity-50 flex items-center gap-2">
                 {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
