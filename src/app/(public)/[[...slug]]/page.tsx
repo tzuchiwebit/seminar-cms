@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import PocketBase from "pocketbase";
-import { fetchSiteDataForBuild, currentBackend } from "@/lib/db-server";
+import { fetchSiteDataForBuild } from "@/lib/db-server";
 import PublicPageClient from "./PublicPageClient";
 
-void currentBackend; // kept for future debugging; import is stable across backends
+// Render at request time so admin saves are immediately visible.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function generateMetadata({ params }: { params: Promise<{ slug?: string[] }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -45,26 +46,6 @@ export async function generateMetadata({ params }: { params: Promise<{ slug?: st
   }
 }
 
-export async function generateStaticParams() {
-  try {
-    let slugs: string[];
-    if (currentBackend === "drust") {
-      const { drustQueryObjects } = await import("@/lib/drust");
-      const rows = await drustQueryObjects<{ slug: string }>(`SELECT slug FROM sites`);
-      slugs = rows.map((r) => r.slug);
-    } else {
-      const pb = new PocketBase(
-        process.env.NEXT_PUBLIC_POCKETBASE_URL || "https://academic-events.pockethost.io/"
-      );
-      const sites = await pb.collection("sites").getFullList({ fields: "slug" });
-      slugs = sites.map((s) => s.slug);
-    }
-    return [{ slug: [] }, ...slugs.map((slug) => ({ slug: [slug] }))];
-  } catch {
-    return [{ slug: [] }, { slug: ["symposium"] }];
-  }
-}
-
 export default async function Page({ params }: { params: Promise<{ slug?: string[] }> }) {
   const { slug } = await params;
   const siteSlug = slug?.[0] || "symposium";
@@ -73,7 +54,7 @@ export default async function Page({ params }: { params: Promise<{ slug?: string
   try {
     preloadedData = await fetchSiteDataForBuild(siteSlug);
   } catch (e) {
-    console.error("Failed to pre-fetch site data:", e);
+    console.error("Failed to fetch site data:", e);
   }
 
   return <PublicPageClient preloadedData={preloadedData} />;
