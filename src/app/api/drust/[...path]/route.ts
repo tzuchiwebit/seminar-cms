@@ -13,19 +13,26 @@ async function forward(req: NextRequest, path: string[]) {
     return NextResponse.json({ error: "DRUST_TOKEN not configured on server" }, { status: 500 });
   }
   const url = `${DRUST_BASE}/${path.join("/")}${req.nextUrl.search}`;
-  const init: RequestInit = {
-    method: req.method,
-    headers: { "Authorization": `Bearer ${DRUST_TOKEN}` },
-  };
+  const headers: Record<string, string> = { "Authorization": `Bearer ${DRUST_TOKEN}` };
+  const init: RequestInit = { method: req.method, headers };
+
   if (req.method !== "GET" && req.method !== "HEAD" && req.method !== "DELETE") {
-    // Use arrayBuffer (not text) so multipart/form-data file uploads survive intact.
-    const body = await req.arrayBuffer();
-    if (body.byteLength > 0) {
-      init.body = body;
-      const ct = req.headers.get("content-type");
-      if (ct) (init.headers as Record<string, string>)["Content-Type"] = ct;
+    const ct = req.headers.get("content-type") || "";
+    if (ct.startsWith("multipart/form-data")) {
+      // Parse, then let fetch re-serialize with a fresh boundary (Content-Type unset
+      // so fetch generates the correct multipart header itself).
+      const fd = await req.formData();
+      init.body = fd;
+    } else {
+      // JSON / text / other: forward bytes as-is, preserve Content-Type.
+      const buf = await req.arrayBuffer();
+      if (buf.byteLength > 0) {
+        init.body = buf;
+        if (ct) headers["Content-Type"] = ct;
+      }
     }
   }
+
   const res = await fetch(url, init);
   // 204/304/1xx must not carry a body — pass through with no body.
   if (res.status === 204 || res.status === 304 || (res.status >= 100 && res.status < 200)) {
