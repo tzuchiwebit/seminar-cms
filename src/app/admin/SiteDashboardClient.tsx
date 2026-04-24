@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, type PointerEvent as ReactPointerEvent } from "react";
 import Link from "next/link";
 
-import pb from "@/lib/pb";
+import pb from "@/lib/pb-compat";
 import { useAuth } from "@/hooks/useAuth";
 import { CroppedPhoto } from "@/components/CroppedPhoto";
 

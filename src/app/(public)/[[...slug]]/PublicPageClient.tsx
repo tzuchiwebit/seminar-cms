@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect, useCallback } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { getSiteBySlug, getSiteDays, getSiteSpeakers, getSiteSettings, getSiteVenues, getSiteExhibitions, getSiteCssVariables, currentBackend } from "@/lib/db";
+import { getSiteBySlug, getSiteDays, getSiteSpeakers, getSiteSettings, getSiteVenues, getSiteExhibitions, getSiteCssVariables } from "@/lib/db";
 import HomePage from "./HomePage";
 
 export default function PublicPageClient({ preloadedData }: { preloadedData?: any }) {

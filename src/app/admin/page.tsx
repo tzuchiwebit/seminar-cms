@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import pb from "@/lib/pb";
+import pb from "@/lib/pb-compat";
 import Link from "next/link";
 import {
   Globe,

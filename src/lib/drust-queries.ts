@@ -316,3 +316,17 @@ export async function getSiteDays(siteId: string) {
 export function getFileUrl(record: { image?: string; photo?: string; logo?: string }, field: string) {
   return (record as Record<string, string>)[field] || "";
 }
+
+// Mirrors pb-server.ts#fetchSiteDataForBuild — one-shot fetch for SSR/build-time.
+export async function fetchSiteDataForBuild(slug: string) {
+  const site = await getSiteBySlug(slug);
+  const [settings, days, speakers, venues, exhibitions, cssVariables] = await Promise.all([
+    getSiteSettings(site.id),
+    getSiteDays(site.id),
+    getSiteSpeakers(site.id),
+    getSiteVenues(site.id),
+    getSiteExhibitions(site.id),
+    getSiteCssVariables(site.id),
+  ]);
+  return { site, days, speakers, settings, venues, exhibitions, cssVariables };
+}
