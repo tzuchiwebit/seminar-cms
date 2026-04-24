@@ -198,11 +198,13 @@ async function drustUploadFile(file: File): Promise<string> {
 }
 
 async function lookupDrustId(collection: string, pbId: string): Promise<number> {
-  const r = await drustRest<{ records: Array<{ id: number }> }>(
-    "GET",
-    `/records/${collection}?where=${encodeURIComponent(`pb_id = '${pbId.replace(/'/g, "''")}'`)}&limit=1`
+  // /records/?where= is broken on this Drust server (filter ignored), so use /query.
+  const r = await drustRest<{ rows: Array<[number]> }>(
+    "POST",
+    "/query",
+    { sql: `SELECT id FROM "${collection}" WHERE pb_id = ${sqlStr(pbId)} LIMIT 1` }
   );
-  const id = r.records?.[0]?.id;
+  const id = r.rows?.[0]?.[0];
   if (id == null) throw new Error(`pb-compat: no ${collection} record with pb_id='${pbId}'`);
   return id;
 }
@@ -211,13 +213,15 @@ async function resolveRelationFKs(collection: string, data: Record<string, unkno
   const relations = RELATIONS[collection] || {};
   const out: Record<string, unknown> = { ...data };
   for (const [field, target] of Object.entries(relations)) {
+    if (!(field in data)) continue; // never auto-null an unchanged relation
     const v = data[field];
     if (typeof v === "string" && v) {
       out[field] = await lookupDrustId(target, v);
-    } else if (v == null || v === "") {
+    } else if (typeof v === "number") {
+      // already a Drust integer id
+    } else {
       out[field] = null;
     }
-    // integer already → leave as-is
   }
   return out;
 }
@@ -251,11 +255,12 @@ interface DrustCollectionApi {
 }
 
 function drustCollection(name: string): DrustCollectionApi {
-  async function getFullList(opts: { filter?: string; sort?: string; expand?: string; fields?: string } = {}): Promise<any[]> {
+  const pbCol = realPb.collection(name);
+
+  async function _drustGetFullList(opts: { filter?: string; sort?: string; expand?: string; fields?: string } = {}): Promise<any[]> {
     const sql = buildSelectSql(name, opts.filter, opts.sort);
     const rows = await drustQueryObjects<Record<string, unknown>>(sql);
     const records = rows.map((r) => rowToPbRecord(name, r));
-    // expand: pull one relation's target records and attach as record.expand.<field>
     if (opts.expand) {
       const expandFields = opts.expand.split(",").map((s) => s.trim());
       for (const field of expandFields) {
@@ -264,12 +269,8 @@ function drustCollection(name: string): DrustCollectionApi {
         const pbIds = Array.from(new Set(records.map((r) => r[field] as string).filter(Boolean)));
         if (pbIds.length === 0) continue;
         const inList = pbIds.map((id) => sqlStr(id)).join(",");
-        const targetSql = buildSelectSql(target) + ` WHERE t.pb_id IN (${inList})`;
         const targetRows = await drustQueryObjects<Record<string, unknown>>(
-          buildSelectSql(target, undefined, undefined).replace(
-            ` FROM ${target} t`,
-            ` FROM ${target} t`
-          ) + ` WHERE t.pb_id IN (${inList})`
+          buildSelectSql(target) + ` WHERE t.pb_id IN (${inList})`
         );
         const targetMap = new Map<string, Record<string, unknown>>();
         for (const tr of targetRows) {
@@ -280,34 +281,57 @@ function drustCollection(name: string): DrustCollectionApi {
           const key = r[field] as string;
           if (!key) continue;
           const expanded = targetMap.get(key);
-          if (expanded) {
-            r.expand = { ...(r.expand as object || {}), [field]: expanded };
-          }
+          if (expanded) r.expand = { ...(r.expand as object || {}), [field]: expanded };
         }
       }
     }
     return records;
   }
 
-  async function getFirstListItem(filter: string, opts: { expand?: string } = {}): Promise<any> {
-    const sql = buildSelectSql(name, filter, undefined, 1);
-    const rows = await drustQueryObjects<Record<string, unknown>>(sql);
-    if (rows.length === 0) {
-      const err = new Error("The requested resource wasn't found.");
-      (err as { status?: number }).status = 404;
-      throw err;
-    }
-    const records = [rowToPbRecord(name, rows[0])];
+  async function _drustGetFirstListItem(filter: string, opts: { expand?: string } = {}): Promise<any> {
     if (opts.expand) {
-      // reuse full list expand logic by wrapping
-      const listed = await getFullList({ filter, expand: opts.expand });
+      const listed = await _drustGetFullList({ filter, expand: opts.expand });
+      if (listed.length === 0) throw Object.assign(new Error("The requested resource wasn't found."), { status: 404 });
       return listed[0];
     }
-    return records[0];
+    const sql = buildSelectSql(name, filter, undefined, 1);
+    const rows = await drustQueryObjects<Record<string, unknown>>(sql);
+    if (rows.length === 0) throw Object.assign(new Error("The requested resource wasn't found."), { status: 404 });
+    return rowToPbRecord(name, rows[0]);
   }
 
+  // Public methods with read-fallback: if Drust read fails, fall back to PocketBase.
+  // 404s from Drust (record not found) propagate as-is — only network/server errors fail over.
+  async function isDrustDown(e: unknown): Promise<boolean> {
+    const msg = (e as Error)?.message || "";
+    const status = (e as { status?: number })?.status;
+    if (status === 404) return false; // legitimate not-found, don't fail over
+    return /5\d\d:|fetch failed|NetworkError|Failed to fetch/.test(msg);
+  }
+
+  async function getFullList(opts: { filter?: string; sort?: string; expand?: string; fields?: string } = {}): Promise<any[]> {
+    try { return await _drustGetFullList(opts); }
+    catch (e) {
+      if (!(await isDrustDown(e))) throw e;
+      console.warn(`[pb-compat] Drust ${name}.getFullList failed, fallback to PB:`, (e as Error).message);
+      return pbCol.getFullList(opts as any);
+    }
+  }
+  async function getFirstListItem(filter: string, opts: { expand?: string } = {}): Promise<any> {
+    try { return await _drustGetFirstListItem(filter, opts); }
+    catch (e) {
+      if (!(await isDrustDown(e))) throw e;
+      console.warn(`[pb-compat] Drust ${name}.getFirstListItem failed, fallback to PB:`, (e as Error).message);
+      return pbCol.getFirstListItem(filter, opts as any);
+    }
+  }
   async function getOne(id: string, opts: { expand?: string } = {}): Promise<any> {
-    return getFirstListItem(`id="${id}"`, opts);
+    try { return await _drustGetFirstListItem(`id="${id}"`, opts); }
+    catch (e) {
+      if (!(await isDrustDown(e))) throw e;
+      console.warn(`[pb-compat] Drust ${name}.getOne failed, fallback to PB:`, (e as Error).message);
+      return pbCol.getOne(id, opts as any);
+    }
   }
 
   async function create(input: Record<string, unknown> | FormData): Promise<any> {
@@ -319,11 +343,8 @@ function drustCollection(name: string): DrustCollectionApi {
     }
     drustData.pb_id = genPbId();
     const { record } = await drustRest<{ record: Record<string, unknown> }>("POST", `/records/${name}`, { data: drustData });
-    // Refetch with JOINs to get pb_id-shaped relations.
-    return getFirstListItem(`id="${record.pb_id}"`).catch(async () => {
-      // Fallback: build shape from returned row without JOINs (relations will be integer).
-      return rowToPbRecord(name, record);
-    });
+    // Refetch from Drust only (don't fallback to PB — record exists only in Drust).
+    return _drustGetFirstListItem(`id="${record.pb_id}"`).catch(() => rowToPbRecord(name, record));
   }
 
   async function update(id: string, input: Record<string, unknown> | FormData): Promise<any> {
@@ -335,7 +356,7 @@ function drustCollection(name: string): DrustCollectionApi {
       drustData[pbToDrustField(name, k)] = v;
     }
     await drustRest("PATCH", `/records/${name}/${drustId}`, { data: drustData });
-    return getFirstListItem(`id="${id}"`).catch(() => ({ id, ...drustData }));
+    return _drustGetFirstListItem(`id="${id}"`).catch(() => ({ id, ...drustData }));
   }
 
   async function deleteRecord(id: string): Promise<void> {

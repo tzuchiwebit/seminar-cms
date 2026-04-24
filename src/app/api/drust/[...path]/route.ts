@@ -15,15 +15,21 @@ async function forward(req: NextRequest, path: string[]) {
   const url = `${DRUST_BASE}/${path.join("/")}${req.nextUrl.search}`;
   const init: RequestInit = {
     method: req.method,
-    headers: {
-      "Authorization": `Bearer ${DRUST_TOKEN}`,
-      ...(req.headers.get("content-type") ? { "Content-Type": req.headers.get("content-type")! } : {}),
-    },
+    headers: { "Authorization": `Bearer ${DRUST_TOKEN}` },
   };
-  if (req.method !== "GET" && req.method !== "HEAD") {
-    init.body = await req.text();
+  if (req.method !== "GET" && req.method !== "HEAD" && req.method !== "DELETE") {
+    const body = await req.text();
+    if (body) {
+      init.body = body;
+      const ct = req.headers.get("content-type");
+      if (ct) (init.headers as Record<string, string>)["Content-Type"] = ct;
+    }
   }
   const res = await fetch(url, init);
+  // 204/304/1xx must not carry a body — pass through with no body.
+  if (res.status === 204 || res.status === 304 || (res.status >= 100 && res.status < 200)) {
+    return new NextResponse(null, { status: res.status });
+  }
   const body = await res.text();
   return new NextResponse(body, {
     status: res.status,
