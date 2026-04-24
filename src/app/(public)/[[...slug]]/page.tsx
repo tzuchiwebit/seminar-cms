@@ -9,20 +9,32 @@ export async function generateMetadata({ params }: { params: Promise<{ slug?: st
   try {
     const data = await fetchSiteDataForBuild(siteSlug);
     const s = data.settings;
+    const title = s.og_title || data.site.name || "研討會";
+    const description = s.og_description || "";
+
+    // Resolve og_image to absolute URL
+    let ogImage = s.og_image || "";
+    if (ogImage && !ogImage.startsWith("http")) {
+      const siteOrigin = data.site.domain
+        ? `https://${data.site.domain}`
+        : "https://academic-events.tzuchi.org";
+      ogImage = ogImage.startsWith("/") ? `${siteOrigin}${ogImage}` : `${siteOrigin}/${ogImage}`;
+    }
+
     return {
-      title: s.og_title || data.site.name || "研討會",
-      description: s.og_description || "",
+      title,
+      description,
       openGraph: {
-        title: s.og_title || data.site.name,
-        description: s.og_description || "",
-        images: s.og_image ? [{ url: s.og_image }] : [],
-        siteName: s.og_title || data.site.name,
+        title,
+        description,
+        images: ogImage ? [{ url: ogImage }] : [],
+        siteName: title,
       },
       twitter: {
         card: "summary_large_image",
-        title: s.og_title || data.site.name,
-        description: s.og_description || "",
-        images: s.og_image ? [s.og_image] : [],
+        title,
+        description,
+        images: ogImage ? [ogImage] : [],
       },
       icons: s.favicon ? { icon: s.favicon } : undefined,
     };
