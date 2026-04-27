@@ -22,6 +22,7 @@ import {
   DoorOpen,
   ClipboardList,
   Palette,
+  Music,
 } from "lucide-react";
 
 import SpeakerModal from "@/components/public/SpeakerModal";
@@ -128,7 +129,7 @@ type HomePageProps = {
 /* ─── Helpers ─── */
 
 function getBadge(type: string): "gold" | "green" | "muted" {
-  if (["keynote", "opening", "roundtable", "closing", "photo"].includes(type)) return "gold";
+  if (["keynote", "opening", "roundtable", "closing", "photo", "concert"].includes(type)) return "gold";
   if (["paper_session"].includes(type)) return "green";
   return "muted";
 }
@@ -136,12 +137,12 @@ function getBadge(type: string): "gold" | "green" | "muted" {
 function getTypeLabel(type: string, titleZh: string, lang: "zh" | "en" = "zh"): string {
   const labelsZh: Record<string, string> = {
     registration: "報到", opening: "開幕典禮", keynote: "專題演講",
-    paper_session: "論文發表", roundtable: "圓桌論壇", break: "茶敘",
+    paper_session: "論文發表", roundtable: "圓桌論壇", concert: "音樂會", break: "茶敘",
     dinner: "晚宴", closing: "閉幕", photo: "大合照", exhibition: "展覽",
   };
   const labelsEn: Record<string, string> = {
     registration: "Registration", opening: "Opening Ceremony", keynote: "Keynote",
-    paper_session: "Paper Session", roundtable: "Roundtable", break: "Break",
+    paper_session: "Paper Session", roundtable: "Roundtable", concert: "Concert", break: "Break",
     dinner: "Dinner", closing: "Closing", photo: "Group Photo", exhibition: "Exhibition",
   };
   if (lang === "en") return labelsEn[type] || titleZh;
@@ -588,6 +589,7 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
                           "報到": ClipboardList,
                           "大合照": Camera,
                           "展覽導覽": Eye, "展覽": Palette, "展覽活動": Palette,
+                          "音樂會": Music,
                           "綜合討論": MessageCircle,
                           "場次一": FileText, "場次二": FileText, "場次三": FileText, "場次四": FileText,
                           // English
@@ -600,6 +602,7 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
                           "Registration": ClipboardList,
                           "Group Photo": Camera,
                           "Exhibition Tour": Eye, "Exhibition": Palette, "Exhibition Event": Palette,
+                          "Concert": Music,
                           "General Discussion": MessageCircle,
                           "Session I": FileText, "Session II": FileText, "Session III": FileText, "Session IV": FileText,
                         };
