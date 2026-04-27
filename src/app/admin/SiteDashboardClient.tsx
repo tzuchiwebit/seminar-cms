@@ -1635,6 +1635,21 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
       for (const spkId of sessionDiscussants) {
         await pb.collection("session_speakers").create({ session: sessionId, speaker: spkId, role: "discussant" });
       }
+      // Sync paper titles back to each speaker's talkTitle field
+      const speakerTitlesMap = new Map<string, { en: string; zh: string }[]>();
+      for (let i = 0; i < sessionSpeakers.length; i++) {
+        const spkId = sessionSpeakers[i];
+        const paperKey = `${spkId}_${i}`;
+        const en = (paperTitles[paperKey] || paperTitles[spkId] || "").trim();
+        const zh = (paperTitlesZh[paperKey] || paperTitlesZh[spkId] || "").trim();
+        if (en || zh) {
+          if (!speakerTitlesMap.has(spkId)) speakerTitlesMap.set(spkId, []);
+          speakerTitlesMap.get(spkId)!.push({ en, zh });
+        }
+      }
+      for (const [spkId, titles] of speakerTitlesMap) {
+        await pb.collection("speakers").update(spkId, { talkTitle: JSON.stringify(titles) }).catch(() => {});
+      }
       setShowForm(false);
       touchLastUpdated(siteId);
       onToast?.(editing ? "儲存成功" : "新增成功");
