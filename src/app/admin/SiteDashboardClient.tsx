@@ -93,6 +93,7 @@ import {
   DoorOpen,
   ClipboardList,
   Clock,
+  Music,
 } from "lucide-react";
 
 /* ═══════════════════════════════════════════
@@ -186,6 +187,7 @@ function SessionBadge({ type, label }: { type: string; label: string }) {
     dinner: "bg-muted text-white",
     closing: "bg-dark text-white",
     exhibition: "bg-gold text-white",
+    concert: "bg-gold text-white",
   };
   const icons: Record<string, React.ComponentType<{ className?: string }>> = {
     registration: ClipboardList,
@@ -195,6 +197,7 @@ function SessionBadge({ type, label }: { type: string; label: string }) {
     paper_session: FileText,
     paper: FileText,
     roundtable: MessageCircle,
+    concert: Music,
     break: Clock,
     dinner: UtensilsCrossed,
     closing: DoorOpen,
@@ -1240,12 +1243,12 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
                 </div>
                 {talkTitles.length > 0 && (
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="w-5 shrink-0" />
+                  <span className="text-xs text-muted w-5 shrink-0 text-center">#</span>
                   <div className={`flex-1 grid gap-2 ${siteLang === "both" ? "grid-cols-2" : "grid-cols-1"}`}>
                     {(siteLang === "en" || siteLang === "both") && <span className="text-xs text-muted">Title（EN） <span className="text-red-500">*</span></span>}
                     {(siteLang === "zh" || siteLang === "both") && <span className="text-xs text-muted">題目（中文） <span className="text-red-500">*</span></span>}
                   </div>
-                  <span className="w-8 shrink-0" />
+                  {talkTitles.length > 1 && <span className="w-[26px] shrink-0" />}
                 </div>
                 )}
                 <div className="space-y-2">
@@ -1392,8 +1395,21 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
   };
 
   const [savingDay, setSavingDay] = useState(false);
+  const [dayErrors, setDayErrors] = useState<string[]>([]);
   const handleSaveDay = async () => {
     if (savingDay) return;
+    const errors: string[] = [];
+    const needEn = siteLang === "en" || siteLang === "both";
+    const needZh = siteLang === "zh" || siteLang === "both";
+    if (!dayForm.date) errors.push("日期");
+    if (needEn && !dayForm.titleEn.trim()) errors.push("主題（英文）");
+    if (needZh && !dayForm.titleZh.trim()) errors.push("主題（中文）");
+    if (errors.length > 0) {
+      setDayErrors(errors);
+      onToast?.(`請填寫：${errors.join("、")}`);
+      return;
+    }
+    setDayErrors([]);
     setSavingDay(true);
     try {
       if (editingDay) {
@@ -1534,12 +1550,11 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
   const handleSave = async () => {
     if (saving) return;
     // Validate ALL fields client-side before calling PocketBase
-    const needsTitle = ["keynote", "paper_session", "roundtable"].includes(form.sessionType);
     const errors: string[] = [];
     if (!form.sessionType) errors.push("場次類型");
     if (!form.startTime.trim()) errors.push("開始時間");
-    if (needsTitle && (siteLang === "zh" || siteLang === "both") && !form.titleZh.trim()) errors.push("標題（中文）");
-    if (needsTitle && (siteLang === "en" || siteLang === "both") && !form.titleEn.trim()) errors.push("標題（英文）");
+    if ((siteLang === "zh" || siteLang === "both") && !form.titleZh.trim()) errors.push("標題（中文）");
+    if ((siteLang === "en" || siteLang === "both") && !form.titleEn.trim()) errors.push("標題（英文）");
     if (!day?.id) errors.push("日程（請先選擇日程）");
     // Validate paper titles for speakers
     for (let i = 0; i < sessionSpeakers.length; i++) {
@@ -1758,21 +1773,25 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-medium text-muted mb-1">日期</label>
-                <input type="date" value={dayForm.date} onChange={(e) => setDayForm({ ...dayForm, date: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                <label className="block text-xs font-medium text-muted mb-1">日期 <span className="text-red-500">*</span></label>
+                <input type="date" value={dayForm.date} onChange={(e) => { setDayForm({ ...dayForm, date: e.target.value }); setDayErrors(prev => prev.filter(x => x !== "日期")); }} className={`w-full px-3 py-2 border rounded-lg text-sm ${dayErrors.includes("日期") ? "border-red-400 bg-red-50" : "border-border"}`} />
               </div>
+              {(siteLang === "en" || siteLang === "both") && (
               <div>
-                <label className="block text-xs font-medium text-muted mb-1">主題（英文）</label>
-                <input type="text" value={dayForm.titleEn} onChange={(e) => setDayForm({ ...dayForm, titleEn: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                <label className="block text-xs font-medium text-muted mb-1">主題（英文） <span className="text-red-500">*</span></label>
+                <input type="text" value={dayForm.titleEn} onChange={(e) => { setDayForm({ ...dayForm, titleEn: e.target.value }); setDayErrors(prev => prev.filter(x => x !== "主題（英文）")); }} className={`w-full px-3 py-2 border rounded-lg text-sm ${dayErrors.includes("主題（英文）") ? "border-red-400 bg-red-50" : "border-border"}`} />
               </div>
+              )}
+              {(siteLang === "zh" || siteLang === "both") && (
               <div>
-                <label className="block text-xs font-medium text-muted mb-1">主題（中文）</label>
-                <input type="text" value={dayForm.titleZh} onChange={(e) => setDayForm({ ...dayForm, titleZh: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                <label className="block text-xs font-medium text-muted mb-1">主題（中文） <span className="text-red-500">*</span></label>
+                <input type="text" value={dayForm.titleZh} onChange={(e) => { setDayForm({ ...dayForm, titleZh: e.target.value }); setDayErrors(prev => prev.filter(x => x !== "主題（中文）")); }} className={`w-full px-3 py-2 border rounded-lg text-sm ${dayErrors.includes("主題（中文）") ? "border-red-400 bg-red-50" : "border-border"}`} />
               </div>
+              )}
             </div>
             <div className="px-6 py-4 border-t border-border flex justify-end gap-3 bg-cream/30">
               <button onClick={() => setShowDayForm(false)} className="px-4 py-2 text-sm text-muted border border-border rounded-lg hover:bg-cream" disabled={savingDay}>取消</button>
-              <button onClick={handleSaveDay} disabled={!dayForm.date || savingDay} className="px-5 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light disabled:opacity-50 flex items-center gap-2">
+              <button onClick={handleSaveDay} disabled={savingDay} className="px-5 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light disabled:opacity-50 flex items-center gap-2">
                 {savingDay && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
                 {savingDay ? "儲存中..." : "儲存"}
               </button>
@@ -1962,11 +1981,11 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
               {/* Row 2: Titles */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-muted mb-1">標題（英文）{["keynote","paper_session","roundtable"].includes(form.sessionType) && (siteLang === "en" || siteLang === "both") && <span className="text-red-500">*</span>}</label>
+                  <label className="block text-xs font-medium text-muted mb-1">標題（英文）{(siteLang === "en" || siteLang === "both") && <span className="text-red-500"> *</span>}</label>
                   <input type="text" value={form.titleEn} onChange={(e) => { setForm({ ...form, titleEn: e.target.value }); setValidationErrors(prev => prev.filter(e => e !== "標題（英文）")); }} className={`w-full px-3 py-2 border rounded-lg text-sm ${validationErrors.includes("標題（英文）") ? "border-red-400 bg-red-50" : "border-border"}`} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-muted mb-1">標題（中文）{["keynote","paper_session","roundtable"].includes(form.sessionType) && (siteLang === "zh" || siteLang === "both") && <span className="text-red-500">*</span>}</label>
+                  <label className="block text-xs font-medium text-muted mb-1">標題（中文）{(siteLang === "zh" || siteLang === "both") && <span className="text-red-500"> *</span>}</label>
                   <input type="text" value={form.titleZh} onChange={(e) => { setForm({ ...form, titleZh: e.target.value }); setValidationErrors(prev => prev.filter(e => e !== "標題（中文）")); }} className={`w-full px-3 py-2 border rounded-lg text-sm ${validationErrors.includes("標題（中文）") ? "border-red-400 bg-red-50" : "border-border"}`} />
                 </div>
               </div>
