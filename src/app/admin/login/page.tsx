@@ -21,6 +21,19 @@ export default function LoginPage() {
   }, [router]);
 
   const handleGoogle = async () => {
+    // Pre-open the popup synchronously inside the click handler so the browser's
+    // popup-blocker recognizes the user gesture. We update its URL once the SDK
+    // calls back with the OAuth metadata.
+    const popup = window.open(
+      "about:blank",
+      "_blank",
+      "width=500,height=600,menubar=no,toolbar=no"
+    );
+    if (!popup) {
+      setErrorMsg("請允許瀏覽器彈出視窗以使用 Google 登入");
+      return;
+    }
+
     setGoogleLoading(true);
     setErrorMsg("");
 
@@ -28,11 +41,10 @@ export default function LoginPage() {
       const authData = await pb.collection("users").authWithOAuth2({
         provider: "google",
         urlCallback: (url) => {
-          // Add hd param to restrict to tzuchi.org.tw domain + prompt account chooser
           const authUrl = new URL(url);
           authUrl.searchParams.set("hd", ALLOWED_DOMAIN);
           authUrl.searchParams.set("prompt", "select_account");
-          window.open(authUrl.toString(), "_blank", "width=500,height=600,menubar=no,toolbar=no");
+          popup.location.href = authUrl.toString();
         },
       });
       const userEmail = authData.record?.email || "";
@@ -45,8 +57,8 @@ export default function LoginPage() {
 
       router.replace("/admin");
     } catch (e: any) {
+      popup.close();
       console.error("[Google login] failed:", e);
-      // PB returns { status, data: { message } } for rule denials etc.
       const status = e?.status ?? e?.response?.status;
       const detail = e?.data?.message || e?.message || "";
       if (status === 400 && /create/i.test(detail)) {

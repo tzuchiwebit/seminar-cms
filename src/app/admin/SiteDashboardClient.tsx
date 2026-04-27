@@ -97,6 +97,46 @@ import {
 } from "lucide-react";
 
 /* ═══════════════════════════════════════════
+   SHARED — Confirm dialog (replaces native confirm())
+   ═══════════════════════════════════════════ */
+function ConfirmDialog({
+  open,
+  onClose,
+  onConfirm,
+  title = "確定要刪除？",
+  subject,
+  children,
+  confirmLabel = "確定刪除",
+}: {
+  open: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title?: string;
+  subject?: React.ReactNode;
+  children?: React.ReactNode;
+  confirmLabel?: string;
+}) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100] p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 pt-6 pb-4 border-b border-border">
+          <h3 className="font-serif text-lg font-bold text-dark">{title}</h3>
+          {subject && <div className="text-sm text-muted mt-1">{subject}</div>}
+        </div>
+        <div className="px-6 py-5 max-h-[50vh] overflow-y-auto">
+          {children || <p className="text-sm text-muted">確認後將永久刪除，無法復原。</p>}
+        </div>
+        <div className="px-6 py-4 bg-cream/30 border-t border-border flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-muted border border-border rounded-lg hover:bg-cream transition-colors">取消</button>
+          <button onClick={onConfirm} className="px-4 py-2 text-sm text-white bg-red-600 rounded-lg hover:bg-red-700 font-medium transition-colors">{confirmLabel}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════
    NAV ITEMS
    ═══════════════════════════════════════════ */
 type Tab = "appearance" | "description" | "tour" | "programme" | "venues" | "speakers" | "registration" | "styles" | "settings";
@@ -1614,12 +1654,26 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
   };
 
   const [deleting, setDeleting] = useState(false);
-  const handleDeleteDay = async (d: any) => {
+  const [deleteDayCandidate, setDeleteDayCandidate] = useState<{
+    day: any;
+    dayIndex: number;
+    sessionTitles: string[];
+  } | null>(null);
+
+  const requestDeleteDay = (d: any) => {
     const dayIndex = days.findIndex((day: any) => day.id === d.id);
-    if (!confirm(`確定刪除 Day ${dayIndex + 1}？所有場次也會一起刪除。`)) return;
+    const sessionTitles = (d.sessions || []).map((s: any) =>
+      s.titleZh || s.titleEn || "(未命名場次)"
+    );
+    setDeleteDayCandidate({ day: d, dayIndex, sessionTitles });
+  };
+
+  const confirmDeleteDay = async () => {
+    if (!deleteDayCandidate) return;
+    const d = deleteDayCandidate.day;
+    setDeleteDayCandidate(null);
     setDeleting(true);
     try {
-      // Delete all sessions under this day (and their related records), ignore already-deleted
       const sessions = await pb.collection("sessions").getFullList({ filter: `day="${d.id}"` }).catch(() => []);
       for (const s of sessions) {
         const relatedSpeakers = await pb.collection("session_speakers").getFullList({ filter: `session="${s.id}"` }).catch(() => []);
@@ -1859,8 +1913,26 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("確定刪除？")) return;
+  const [deleteSessionCandidate, setDeleteSessionCandidate] = useState<{
+    id: string;
+    title: string;
+    speakersCount: number;
+    papersCount: number;
+  } | null>(null);
+
+  const requestDeleteSession = (s: any) => {
+    setDeleteSessionCandidate({
+      id: s.id,
+      title: s.titleZh || s.titleEn || "(未命名場次)",
+      speakersCount: (s.sessionSpeakers || []).length,
+      papersCount: (s.papers || []).length,
+    });
+  };
+
+  const confirmDeleteSession = async () => {
+    if (!deleteSessionCandidate) return;
+    const id = deleteSessionCandidate.id;
+    setDeleteSessionCandidate(null);
     setDeleting(true);
     try {
       const relatedSpeakers = await pb.collection("session_speakers").getFullList({ filter: `session="${id}"` }).catch(() => []);
@@ -1900,6 +1972,60 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
   return (
     <>
       {deleting && <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100]"><div className="bg-white rounded-xl px-8 py-6 flex flex-col items-center gap-3 shadow-xl"><div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" /><span className="text-sm font-semibold text-dark">刪除中...</span><span className="text-xs text-muted">刪除過程可能需要一些時間，請耐心等候</span></div></div>}
+      <ConfirmDialog
+        open={!!deleteDayCandidate}
+        onClose={() => setDeleteDayCandidate(null)}
+        onConfirm={confirmDeleteDay}
+        subject={deleteDayCandidate && (
+          <>日程：<span className="font-medium text-dark">Day {deleteDayCandidate.dayIndex + 1}</span></>
+        )}
+      >
+        {deleteDayCandidate && (
+          deleteDayCandidate.sessionTitles.length > 0 ? (
+            <>
+              <p className="text-sm text-dark mb-3">
+                此日程連結到 <span className="font-semibold text-red-600">{deleteDayCandidate.sessionTitles.length}</span> 個場次。刪除後將一併移除：
+              </p>
+              <ul className="space-y-1.5">
+                {deleteDayCandidate.sessionTitles.map((title, i) => (
+                  <li key={i} className="px-3 py-2 bg-cream/40 rounded-md border border-border text-sm text-dark">{title}</li>
+                ))}
+              </ul>
+              <p className="text-xs text-red-600 mt-3 font-semibold">此操作無法復原</p>
+            </>
+          ) : (
+            <p className="text-sm text-muted">此日程沒有場次。確認後將永久刪除，無法復原。</p>
+          )
+        )}
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={!!deleteSessionCandidate}
+        onClose={() => setDeleteSessionCandidate(null)}
+        onConfirm={confirmDeleteSession}
+        subject={deleteSessionCandidate && (
+          <>場次：<span className="font-medium text-dark">{deleteSessionCandidate.title}</span></>
+        )}
+      >
+        {deleteSessionCandidate && (
+          deleteSessionCandidate.speakersCount > 0 || deleteSessionCandidate.papersCount > 0 ? (
+            <>
+              <p className="text-sm text-dark mb-2">此場次連結到：</p>
+              <ul className="space-y-1 text-sm text-dark">
+                {deleteSessionCandidate.speakersCount > 0 && (
+                  <li>· <span className="font-semibold text-red-600">{deleteSessionCandidate.speakersCount}</span> 個講者連結</li>
+                )}
+                {deleteSessionCandidate.papersCount > 0 && (
+                  <li>· <span className="font-semibold text-red-600">{deleteSessionCandidate.papersCount}</span> 篇論文</li>
+                )}
+              </ul>
+              <p className="text-xs text-muted mt-3">講者本身不會被刪除，只移除與此場次的連結。論文紀錄會被刪除。</p>
+              <p className="text-xs text-red-600 mt-2 font-semibold">此操作無法復原</p>
+            </>
+          ) : (
+            <p className="text-sm text-muted">此場次沒有講者或論文。確認後將永久刪除，無法復原。</p>
+          )
+        )}
+      </ConfirmDialog>
       {/* ── Day Management ── */}
       <div className="mb-6 p-5 bg-white rounded-xl border border-border">
         <div className="flex items-center justify-between mb-3">
@@ -1949,7 +2075,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
           </div>
           <div className="flex gap-1">
             <button onClick={() => openEditDay(day)} className="p-1.5 text-muted hover:text-gold rounded-md hover:bg-gold/10" title="編輯日程"><Pencil className="w-4 h-4" /></button>
-            <button onClick={() => handleDeleteDay(day)} className="p-1.5 text-muted hover:text-red-600 rounded-md hover:bg-red-50" title="刪除日程"><Trash2 className="w-4 h-4" /></button>
+            <button onClick={() => requestDeleteDay(day)} className="p-1.5 text-muted hover:text-red-600 rounded-md hover:bg-red-50" title="刪除日程"><Trash2 className="w-4 h-4" /></button>
           </div>
         </div>
       )}
@@ -2070,7 +2196,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
               </div>
               <div className="flex items-center gap-2 shrink-0 ml-2">
                 <button onClick={() => openEdit(s)} className="p-1.5 text-muted hover:text-gold rounded-md hover:bg-gold/10"><Pencil className="w-4 h-4" /></button>
-                <button onClick={() => handleDelete(s.id)} className="p-1.5 text-muted hover:text-red-600 rounded-md hover:bg-red-50"><Trash2 className="w-4 h-4" /></button>
+                <button onClick={() => requestDeleteSession(s)} className="p-1.5 text-muted hover:text-red-600 rounded-md hover:bg-red-50"><Trash2 className="w-4 h-4" /></button>
               </div>
             </div>
           </div>
@@ -2477,8 +2603,19 @@ function VenuesPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: stri
   };
 
   const [deleting, setDeleting] = useState(false);
-  const handleDelete = async (id: string) => {
-    if (!confirm("確定刪除？")) return;
+  const [deleteVenueCandidate, setDeleteVenueCandidate] = useState<{ id: string; name: string } | null>(null);
+
+  const requestDeleteVenue = (v: any) => {
+    setDeleteVenueCandidate({
+      id: v.id,
+      name: v.nameZh || v.name || "(未命名場地)",
+    });
+  };
+
+  const confirmDeleteVenue = async () => {
+    if (!deleteVenueCandidate) return;
+    const id = deleteVenueCandidate.id;
+    setDeleteVenueCandidate(null);
     setDeleting(true);
     try {
       await pb.collection("venues").delete(id);
@@ -2495,6 +2632,14 @@ function VenuesPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: stri
   return (
     <>
       {deleting && <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100]"><div className="bg-white rounded-xl px-8 py-6 flex flex-col items-center gap-3 shadow-xl"><div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" /><span className="text-sm font-semibold text-dark">刪除中...</span><span className="text-xs text-muted">刪除過程可能需要一些時間，請耐心等候</span></div></div>}
+      <ConfirmDialog
+        open={!!deleteVenueCandidate}
+        onClose={() => setDeleteVenueCandidate(null)}
+        onConfirm={confirmDeleteVenue}
+        subject={deleteVenueCandidate && (
+          <>場地：<span className="font-medium text-dark">{deleteVenueCandidate.name}</span></>
+        )}
+      />
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-semibold text-dark">場地管理</h2>
         <button onClick={openAdd} className="flex items-center gap-1.5 px-4 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light transition-colors">
@@ -2523,7 +2668,7 @@ function VenuesPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: stri
                 </div>
                 <div className="flex items-center gap-1">
                   <button onClick={() => openEdit(v)} className="p-1.5 text-muted hover:text-gold rounded-md hover:bg-gold/10"><Pencil className="w-4 h-4" /></button>
-                  <button onClick={() => handleDelete(v.id)} className="p-1.5 text-muted hover:text-red-600 rounded-md hover:bg-red-50"><Trash2 className="w-4 h-4" /></button>
+                  <button onClick={() => requestDeleteVenue(v)} className="p-1.5 text-muted hover:text-red-600 rounded-md hover:bg-red-50"><Trash2 className="w-4 h-4" /></button>
                 </div>
               </div>
               <p className="font-medium text-dark text-sm mb-1">{v.name}</p>
@@ -2730,8 +2875,24 @@ function RegistrationsPanel({ siteId, onToast }: { siteId: string; onToast?: (ms
   };
 
   const [deleting, setDeleting] = useState(false);
-  const handleDelete = async (id: string) => {
-    if (!confirm("確定刪除？")) return;
+  const [deleteRegCandidate, setDeleteRegCandidate] = useState<{
+    id: string;
+    name: string;
+    email: string;
+  } | null>(null);
+
+  const requestDeleteRegistration = (r: any) => {
+    setDeleteRegCandidate({
+      id: r.id,
+      name: r.name || "(未填姓名)",
+      email: r.email || "",
+    });
+  };
+
+  const confirmDeleteRegistration = async () => {
+    if (!deleteRegCandidate) return;
+    const id = deleteRegCandidate.id;
+    setDeleteRegCandidate(null);
     setDeleting(true);
     try {
       await pb.collection("registrations").delete(id);
@@ -2748,6 +2909,17 @@ function RegistrationsPanel({ siteId, onToast }: { siteId: string; onToast?: (ms
   return (
     <>
       {deleting && <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100]"><div className="bg-white rounded-xl px-8 py-6 flex flex-col items-center gap-3 shadow-xl"><div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" /><span className="text-sm font-semibold text-dark">刪除中...</span><span className="text-xs text-muted">刪除過程可能需要一些時間，請耐心等候</span></div></div>}
+      <ConfirmDialog
+        open={!!deleteRegCandidate}
+        onClose={() => setDeleteRegCandidate(null)}
+        onConfirm={confirmDeleteRegistration}
+        subject={deleteRegCandidate && (
+          <>
+            報名人：<span className="font-medium text-dark">{deleteRegCandidate.name}</span>
+            {deleteRegCandidate.email && <span className="text-muted/70 ml-2">{deleteRegCandidate.email}</span>}
+          </>
+        )}
+      />
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-semibold text-dark">報名管理</h2>
         <button className="px-4 py-2 bg-white border border-border text-sm text-dark rounded-lg hover:bg-cream transition-colors">匯出 CSV</button>
@@ -2784,7 +2956,7 @@ function RegistrationsPanel({ siteId, onToast }: { siteId: string; onToast?: (ms
                 <td className="px-6 py-4 text-sm text-muted">{r.created ? new Date(r.created).toLocaleDateString() : ""}</td>
                 <td className="px-6 py-4">
                   <div className="flex items-center justify-end gap-2">
-                    <button onClick={() => handleDelete(r.id)} className="p-1.5 text-muted hover:text-red-600 rounded-md hover:bg-red-50"><Trash2 className="w-4 h-4" /></button>
+                    <button onClick={() => requestDeleteRegistration(r)} className="p-1.5 text-muted hover:text-red-600 rounded-md hover:bg-red-50"><Trash2 className="w-4 h-4" /></button>
                   </div>
                 </td>
               </tr>
