@@ -1018,9 +1018,10 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
           {["All", "Confirmed", "Pending"].map((f) => {
             const filterLabels: Record<string, string> = { All: "全部", Confirmed: "已確認", Pending: "待確認" };
             const filterTips: Record<string, string> = { All: "顯示所有講者", Confirmed: "已確認的講者會顯示在公開網站", Pending: "待確認的講者不會顯示在公開網站" };
+            const count = f === "All" ? speakers.length : speakers.filter((s) => s.status?.toLowerCase() === f.toLowerCase()).length;
             return (
             <button key={f} onClick={() => setFilter(f)} title={filterTips[f]} className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px ${filter === f ? "border-gold text-gold" : "border-transparent text-muted hover:text-dark"}`}>
-              {filterLabels[f]}
+              {filterLabels[f]} <span className={`ml-1 text-xs ${filter === f ? "text-gold/70" : "text-muted/50"}`}>{count}</span>
             </button>
           );
           })}
