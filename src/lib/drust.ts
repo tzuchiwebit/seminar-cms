@@ -1,9 +1,11 @@
 // Drust isomorphic client.
-// - Server-side (build, API route): talks directly to Drust with admin token.
+// - Server-side (build, API route): talks directly to Drust.
+//   Prefers DRUST_ANON_TOKEN (read-only scope) since this client only runs SELECT;
+//   falls back to DRUST_TOKEN (admin) if anon is not configured.
 // - Client-side (browser): talks to our own /api/drust proxy; token never leaves server.
 
 const DRUST_BASE = process.env.DRUST_BASE_URL || "https://tool.tzuchi-org.tw/drust/t/35d6eba3-a0b7-4f09-9a54-7855fdb417f1";
-const DRUST_TOKEN = process.env.DRUST_TOKEN || "";
+const DRUST_TOKEN = process.env.DRUST_ANON_TOKEN || process.env.DRUST_TOKEN || "";
 const PROXY_BASE = "/api/drust";
 
 const isServer = typeof window === "undefined";

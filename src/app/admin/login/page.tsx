@@ -44,8 +44,18 @@ export default function LoginPage() {
       }
 
       router.replace("/admin");
-    } catch {
-      setErrorMsg("Google 登入失敗");
+    } catch (e: any) {
+      console.error("[Google login] failed:", e);
+      // PB returns { status, data: { message } } for rule denials etc.
+      const status = e?.status ?? e?.response?.status;
+      const detail = e?.data?.message || e?.message || "";
+      if (status === 400 && /create/i.test(detail)) {
+        setErrorMsg("此帳號尚未註冊到系統，請聯絡管理員");
+      } else if (status === 404) {
+        setErrorMsg("OAuth 設定錯誤，請聯絡管理員");
+      } else {
+        setErrorMsg(`Google 登入失敗${detail ? "：" + detail : ""}`);
+      }
     } finally {
       setGoogleLoading(false);
     }

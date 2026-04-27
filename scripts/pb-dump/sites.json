@@ -1,1 +1,28 @@
-{"items":[{"collectionId":"pbc_2001081480","collectionName":"sites","domain":"","id":"tz4k80pjf97qimy","logo":"","name":"慈濟全球共善學思會","slug":"symposium","status":"published"},{"collectionId":"pbc_2001081480","collectionName":"sites","domain":"","id":"eji04mwe5t4v6s6","logo":"","name":"慈濟測試網站","slug":"trial","status":"draft"}],"page":1,"perPage":500,"totalItems":2,"totalPages":1}
+{
+  "items": [
+    {
+      "collectionId": "pbc_2001081480",
+      "collectionName": "sites",
+      "domain": "",
+      "id": "tz4k80pjf97qimy",
+      "logo": "",
+      "name": "慈濟全球共善學思會",
+      "slug": "symposium",
+      "status": "published"
+    },
+    {
+      "collectionId": "pbc_2001081480",
+      "collectionName": "sites",
+      "domain": "",
+      "id": "eji04mwe5t4v6s6",
+      "logo": "",
+      "name": "慈濟測試網站",
+      "slug": "trial",
+      "status": "draft"
+    }
+  ],
+  "totalItems": 2,
+  "page": 1,
+  "perPage": 500,
+  "totalPages": 1
+}

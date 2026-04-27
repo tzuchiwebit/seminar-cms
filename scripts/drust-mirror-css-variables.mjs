@@ -68,7 +68,7 @@ await rpc('notifications/initialized', {}, true);
 
 const existing = (await tool('list_collections')).collections.map(c => c.name);
 if (existing.includes('css_variables')) {
-  await tool('drop_collection', { name: 'css_variables' });
+  await tool('drop_collection', { collection: 'css_variables' });
   console.log('dropped existing css_variables');
 }
 

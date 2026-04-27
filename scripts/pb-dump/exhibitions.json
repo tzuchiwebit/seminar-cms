@@ -1,1 +1,21 @@
-{"items":[{"collectionId":"pbc_2133058248","collectionName":"exhibitions","description":"由哈佛大學CAMLab策劃，結合沉浸式藝術體驗，引領觀者走入佛教藝術與靜思法脈的精神之旅。","endDate":"2026-05-09 00:00:00.000Z","id":"ed457fw6rmfexga","image":"","site":"tz4k80pjf97qimy","startDate":"2026-05-05 00:00:00.000Z","titleEn":"Journey to Enlightenment","titleZh":"明心","venue":"Harvard CAMLab Cave"}],"page":1,"perPage":500,"totalItems":1,"totalPages":1}
+{
+  "items": [
+    {
+      "collectionId": "pbc_2133058248",
+      "collectionName": "exhibitions",
+      "description": "由哈佛大學CAMLab策劃，結合沉浸式藝術體驗，引領觀者走入佛教藝術與靜思法脈的精神之旅。",
+      "endDate": "2026-05-09 00:00:00.000Z",
+      "id": "ed457fw6rmfexga",
+      "image": "",
+      "site": "tz4k80pjf97qimy",
+      "startDate": "2026-05-05 00:00:00.000Z",
+      "titleEn": "Journey to Enlightenment",
+      "titleZh": "明心",
+      "venue": "Harvard CAMLab Cave"
+    }
+  ],
+  "totalItems": 1,
+  "page": 1,
+  "perPage": 500,
+  "totalPages": 1
+}

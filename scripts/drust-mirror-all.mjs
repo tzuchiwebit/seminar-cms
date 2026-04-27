@@ -370,7 +370,7 @@ async function main() {
   for (const name of dropOrder) {
     if (existing.includes(name)) {
       try {
-        await tool('drop_collection', { name });
+        await tool('drop_collection', { collection: name });
         console.log(`  dropped ${name}`);
       } catch (e) {
         console.log(`  drop ${name} FAILED: ${e.message}`);

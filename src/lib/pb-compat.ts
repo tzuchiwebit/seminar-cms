@@ -257,6 +257,44 @@ interface DrustCollectionApi {
 function drustCollection(name: string): DrustCollectionApi {
   const pbCol = realPb.collection(name);
 
+  // Recursively expand a chain like ["session","day"] on the given records.
+  // After expansion: r.expand[head] = expandedRecord, and recurses into the
+  // expanded records using the next chain segment.
+  async function expandChain(
+    records: any[],
+    parentCollection: string,
+    chain: string[],
+  ): Promise<void> {
+    if (chain.length === 0 || records.length === 0) return;
+    const [head, ...rest] = chain;
+    const target = RELATIONS[parentCollection]?.[head];
+    if (!target) return;
+    const pbIds = Array.from(new Set(records.map((r) => r[head] as string).filter(Boolean)));
+    if (pbIds.length === 0) return;
+    const inList = pbIds.map((id) => sqlStr(id)).join(",");
+    const targetRows = await drustQueryObjects<Record<string, unknown>>(
+      buildSelectSql(target) + ` WHERE t.pb_id IN (${inList})`
+    );
+    const targetMap = new Map<string, Record<string, unknown>>();
+    for (const tr of targetRows) {
+      const pb = rowToPbRecord(target, tr);
+      targetMap.set(pb.id as string, pb);
+    }
+    const expandedRecords: any[] = [];
+    for (const r of records) {
+      const key = r[head] as string;
+      if (!key) continue;
+      const expanded = targetMap.get(key);
+      if (expanded) {
+        r.expand = { ...(r.expand as object || {}), [head]: expanded };
+        expandedRecords.push(expanded);
+      }
+    }
+    if (rest.length > 0) {
+      await expandChain(expandedRecords, target, rest);
+    }
+  }
+
   async function _drustGetFullList(opts: { filter?: string; sort?: string; expand?: string; fields?: string } = {}): Promise<any[]> {
     const sql = buildSelectSql(name, opts.filter, opts.sort);
     const rows = await drustQueryObjects<Record<string, unknown>>(sql);
@@ -264,25 +302,8 @@ function drustCollection(name: string): DrustCollectionApi {
     if (opts.expand) {
       const expandFields = opts.expand.split(",").map((s) => s.trim());
       for (const field of expandFields) {
-        const target = RELATIONS[name]?.[field];
-        if (!target) continue;
-        const pbIds = Array.from(new Set(records.map((r) => r[field] as string).filter(Boolean)));
-        if (pbIds.length === 0) continue;
-        const inList = pbIds.map((id) => sqlStr(id)).join(",");
-        const targetRows = await drustQueryObjects<Record<string, unknown>>(
-          buildSelectSql(target) + ` WHERE t.pb_id IN (${inList})`
-        );
-        const targetMap = new Map<string, Record<string, unknown>>();
-        for (const tr of targetRows) {
-          const pb = rowToPbRecord(target, tr);
-          targetMap.set(pb.id as string, pb);
-        }
-        for (const r of records) {
-          const key = r[field] as string;
-          if (!key) continue;
-          const expanded = targetMap.get(key);
-          if (expanded) r.expand = { ...(r.expand as object || {}), [field]: expanded };
-        }
+        const chain = field.split(".").map((s) => s.trim()).filter(Boolean);
+        await expandChain(records, name, chain);
       }
     }
     return records;
