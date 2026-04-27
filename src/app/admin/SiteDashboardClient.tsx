@@ -1578,7 +1578,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
         const titleEn = paperTitles[paperKey] || paperTitles[spkId] || "";
         const titleZh = paperTitlesZh[paperKey] || paperTitlesZh[spkId] || "";
         if (titleEn || titleZh) {
-          await pb.collection("papers").create({ session: sessionId, speaker: spkId, titleEn, titleZh, sortOrder: paperOrder++ });
+          await pb.collection("papers").create({ session: sessionId, speaker: spkId, titleEn, titleZh, sortOrder: paperOrder++, status: "draft" });
         }
       }
       for (const spkId of sessionDiscussants) {
@@ -1591,9 +1591,10 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
     } catch (e: any) {
       console.error("Failed to save session", e);
       // Parse PocketBase field-level errors and show as validation
-      if (e?.data) {
-        const fieldErrors = Object.entries(e.data)
-          .filter(([k]) => k !== "code" && k !== "message")
+      const errorData = e?.data?.data || e?.data;
+      if (errorData && typeof errorData === "object") {
+        const fieldErrors = Object.entries(errorData)
+          .filter(([k]) => k !== "code" && k !== "message" && k !== "data")
           .map(([k, v]: any) => v?.message ? `${k}: ${v.message}` : `${k}`);
         if (fieldErrors.length > 0) {
           onToast?.(`請檢查：${fieldErrors.join("、")}`);
