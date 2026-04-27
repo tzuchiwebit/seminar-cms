@@ -920,10 +920,22 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
     if (needZh && !form.affiliationZh.trim()) errors.push("affiliationZh");
     if (needEn && !form.title.trim()) errors.push("title");
     if (needZh && !form.titleZh.trim()) errors.push("titleZh");
+    // Validate talk titles — if any content, require both languages based on siteLang
+    talkTitles.forEach((t, i) => {
+      if (t.en.trim() || t.zh.trim()) {
+        if (needEn && !t.en.trim()) errors.push(`talkTitle_en_${i}`);
+        if (needZh && !t.zh.trim()) errors.push(`talkTitle_zh_${i}`);
+      }
+    });
     if (errors.length > 0) {
       setSpeakerErrors(errors);
       const labels: Record<string, string> = { name: "姓名（EN）", nameCn: "姓名（中文）", affiliation: "所屬單位（EN）", affiliationZh: "所屬單位（中文）", title: "職稱（EN）", titleZh: "職稱（中文）" };
-      onToast?.(`請填寫：${errors.map(e => labels[e]).join("、")}`);
+      const msgs = errors.map(e => {
+        if (e.startsWith("talkTitle_en_")) return `演講題目 ${+e.split("_")[2] + 1}（EN）`;
+        if (e.startsWith("talkTitle_zh_")) return `演講題目 ${+e.split("_")[2] + 1}（中文）`;
+        return labels[e] || e;
+      });
+      onToast?.(`請填寫：${msgs.join("、")}`);
       return;
     }
     setSpeakerErrors([]);
@@ -1235,18 +1247,18 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
                         <input
                           type="text"
                           value={t.en}
-                          onChange={(e) => { const arr = [...talkTitles]; arr[i] = { ...arr[i], en: e.target.value }; setTalkTitles(arr); }}
-                          placeholder="Talk title (EN)..."
-                          className="w-full px-3 py-2 border border-border rounded-lg text-sm"
+                          onChange={(e) => { const arr = [...talkTitles]; arr[i] = { ...arr[i], en: e.target.value }; setSpeakerErrors(prev => prev.filter(x => x !== `talkTitle_en_${i}`)); setTalkTitles(arr); }}
+                          placeholder="Talk title (EN) *"
+                          className={`w-full px-3 py-2 border rounded-lg text-sm ${speakerErrors.includes(`talkTitle_en_${i}`) ? "border-red-400 bg-red-50" : "border-border"}`}
                         />
                         )}
                         {(siteLang === "zh" || siteLang === "both") && (
                         <input
                           type="text"
                           value={t.zh}
-                          onChange={(e) => { const arr = [...talkTitles]; arr[i] = { ...arr[i], zh: e.target.value }; setTalkTitles(arr); }}
-                          placeholder="演講題目（中文）..."
-                          className="w-full px-3 py-2 border border-border rounded-lg text-sm"
+                          onChange={(e) => { const arr = [...talkTitles]; arr[i] = { ...arr[i], zh: e.target.value }; setSpeakerErrors(prev => prev.filter(x => x !== `talkTitle_zh_${i}`)); setTalkTitles(arr); }}
+                          placeholder="演講題目（中文） *"
+                          className={`w-full px-3 py-2 border rounded-lg text-sm ${speakerErrors.includes(`talkTitle_zh_${i}`) ? "border-red-400 bg-red-50" : "border-border"}`}
                         />
                         )}
                       </div>
@@ -1519,6 +1531,19 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
     if (needsTitle && (siteLang === "zh" || siteLang === "both") && !form.titleZh.trim()) errors.push("標題（中文）");
     if (needsTitle && (siteLang === "en" || siteLang === "both") && !form.titleEn.trim()) errors.push("標題（英文）");
     if (!day?.id) errors.push("日程（請先選擇日程）");
+    // Validate paper titles for speakers
+    for (let i = 0; i < sessionSpeakers.length; i++) {
+      const spkId = sessionSpeakers[i];
+      const paperKey = `${spkId}_${i}`;
+      const hasEn = (paperTitles[paperKey] || paperTitles[spkId] || "").trim();
+      const hasZh = (paperTitlesZh[paperKey] || paperTitlesZh[spkId] || "").trim();
+      if (hasEn || hasZh) {
+        const spk = allSpeakers.find((s: any) => s.id === spkId);
+        const spkName = spk?.name || `Speaker ${i + 1}`;
+        if ((siteLang === "en" || siteLang === "both") && !hasEn) errors.push(`${spkName} 論文標題（EN）`);
+        if ((siteLang === "zh" || siteLang === "both") && !hasZh) errors.push(`${spkName} 論文標題（中文）`);
+      }
+    }
 
     if (errors.length > 0) {
       setValidationErrors(errors);
@@ -1535,8 +1560,8 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
         normalizedTime = `${normalizedTime.padStart(2, "0")}:00`;
       }
       // Auto-fill empty titles with session type label (PocketBase requires titleZh)
-      const typeLabelsZh: Record<string, string> = { registration: "報到", opening: "開幕典禮", keynote: "專題演講", photo: "大合照", paper_session: "論文發表", roundtable: "圓桌論壇", break: "茶敘", dinner: "晚宴", closing: "閉幕", exhibition: "展覽" };
-      const typeLabelsEn: Record<string, string> = { registration: "Registration", opening: "Opening Ceremony", keynote: "Keynote", photo: "Group Photo", paper_session: "Paper Session", roundtable: "Roundtable", break: "Break", dinner: "Dinner", closing: "Closing", exhibition: "Exhibition" };
+      const typeLabelsZh: Record<string, string> = { registration: "報到", opening: "開幕典禮", keynote: "專題演講", photo: "大合照", paper_session: "論文發表", roundtable: "圓桌論壇", concert: "音樂會", break: "茶敘", dinner: "晚宴", closing: "閉幕", exhibition: "展覽" };
+      const typeLabelsEn: Record<string, string> = { registration: "Registration", opening: "Opening Ceremony", keynote: "Keynote", photo: "Group Photo", paper_session: "Paper Session", roundtable: "Roundtable", concert: "Concert", break: "Break", dinner: "Dinner", closing: "Closing", exhibition: "Exhibition" };
       const sessionData = {
         type: form.sessionType,
         titleZh: form.titleZh.trim() || typeLabelsZh[form.sessionType] || form.sessionType,
@@ -1643,6 +1668,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
     dinner: "晚宴",
     closing: "閉幕",
     exhibition: "展覽",
+    concert: "音樂會",
   };
 
   return (
@@ -1849,8 +1875,8 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
                   <label className="block text-xs font-medium text-muted mb-1">場次類型</label>
                   <select value={form.sessionType} onChange={(e) => {
                     const t = e.target.value;
-                    const autoFillZh: Record<string, string> = { registration: "報到", opening: "開幕典禮", photo: "大合照", break: "茶敘", dinner: "晚宴", closing: "閉幕", exhibition: "展覽" };
-                    const autoFillEn: Record<string, string> = { registration: "Registration", opening: "Opening Ceremony", photo: "Group Photo", break: "Break", dinner: "Dinner", closing: "Closing", exhibition: "Exhibition" };
+                    const autoFillZh: Record<string, string> = { registration: "報到", opening: "開幕典禮", photo: "大合照", concert: "音樂會", break: "茶敘", dinner: "晚宴", closing: "閉幕", exhibition: "展覽" };
+                    const autoFillEn: Record<string, string> = { registration: "Registration", opening: "Opening Ceremony", photo: "Group Photo", concert: "Concert", break: "Break", dinner: "Dinner", closing: "Closing", exhibition: "Exhibition" };
                     if (autoFillZh[t]) {
                       setForm({ ...form, sessionType: t, titleZh: autoFillZh[t], titleEn: autoFillEn[t] });
                     } else {
@@ -1863,6 +1889,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
                     <option value="photo">大合照</option>
                     <option value="paper_session">論文發表</option>
                     <option value="roundtable">圓桌論壇</option>
+                    <option value="concert">音樂會</option>
                     <option value="break">茶敘</option>
                     <option value="dinner">晚宴</option>
                     <option value="closing">閉幕</option>
@@ -2017,7 +2044,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
                                 type="text"
                                 value={paperTitles[paperKey] || paperTitles[id] || ""}
                                 onChange={(e) => setPaperTitles({ ...paperTitles, [paperKey]: e.target.value })}
-                                placeholder="Paper title (EN)..."
+                                placeholder="Paper title (EN) *"
                                 className="flex-1 px-2 py-1 border border-border rounded text-xs"
                               />
                             )}
@@ -2026,7 +2053,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
                                 type="text"
                                 value={paperTitlesZh[paperKey] || paperTitlesZh[id] || ""}
                                 onChange={(e) => setPaperTitlesZh({ ...paperTitlesZh, [paperKey]: e.target.value })}
-                                placeholder="論文標題（中文）..."
+                                placeholder="論文標題（中文） *"
                                 className="flex-1 px-2 py-1 border border-border rounded text-xs"
                               />
                             )}
@@ -2113,6 +2140,8 @@ function VenuesPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: stri
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [venuesLoading, setVenuesLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [siteLang, setSiteLang] = useState<string>("both");
+  const [venueErrors, setVenueErrors] = useState<string[]>([]);
 
   const fetchVenues = useCallback(async () => {
     try {
@@ -2122,7 +2151,10 @@ function VenuesPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: stri
     setVenuesLoading(false);
   }, [siteId]);
 
-  useEffect(() => { fetchVenues(); }, [fetchVenues]);
+  useEffect(() => {
+    fetchVenues();
+    loadSettings(siteId).then((s) => setSiteLang(s.site_language || "both")).catch(() => {});
+  }, [fetchVenues, siteId]);
 
   const openAdd = () => {
     setEditing(null);
@@ -2158,6 +2190,20 @@ function VenuesPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: stri
 
   const handleSave = async () => {
     if (saving) return;
+    const errors: string[] = [];
+    const needEn = siteLang === "en" || siteLang === "both";
+    const needZh = siteLang === "zh" || siteLang === "both";
+    if (needEn && !form.name.trim()) errors.push("name");
+    if (needZh && !form.nameZh.trim()) errors.push("nameZh");
+    if (!form.address.trim()) errors.push("address");
+    if (!form.type.trim()) errors.push("type");
+    if (errors.length > 0) {
+      setVenueErrors(errors);
+      const labels: Record<string, string> = { name: "Name（EN）", nameZh: "名稱（中文）", address: "地址", type: "類型" };
+      onToast?.(`請填寫：${errors.map(e => labels[e]).join("、")}`);
+      return;
+    }
+    setVenueErrors([]);
     setSaving(true);
     try {
       const formData = new FormData();
@@ -2273,30 +2319,38 @@ function VenuesPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: stri
               </label>
               <span className="text-xs text-muted ml-2">建議 1920x800px</span>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className={`grid gap-4 ${siteLang === "both" ? "grid-cols-2" : "grid-cols-1"}`}>
+              {(siteLang === "zh" || siteLang === "both") && (
               <div>
-                <label className="block text-sm font-medium text-dark mb-1">名稱（中文）</label>
-                <input type="text" value={form.nameZh} onChange={(e) => setForm({ ...form, nameZh: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                <label className="block text-sm font-medium text-dark mb-1">名稱（中文） <span className="text-red-500">*</span></label>
+                <input type="text" value={form.nameZh} onChange={(e) => { setForm({ ...form, nameZh: e.target.value }); setVenueErrors(prev => prev.filter(x => x !== "nameZh")); }} className={`w-full px-3 py-2 border rounded-lg text-sm ${venueErrors.includes("nameZh") ? "border-red-400 bg-red-50" : "border-border"}`} />
               </div>
+              )}
+              {(siteLang === "en" || siteLang === "both") && (
               <div>
-                <label className="block text-sm font-medium text-dark mb-1">Name（English）</label>
-                <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                <label className="block text-sm font-medium text-dark mb-1">Name（English） <span className="text-red-500">*</span></label>
+                <input type="text" value={form.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setVenueErrors(prev => prev.filter(x => x !== "name")); }} className={`w-full px-3 py-2 border rounded-lg text-sm ${venueErrors.includes("name") ? "border-red-400 bg-red-50" : "border-border"}`} />
               </div>
+              )}
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className={`grid gap-4 ${siteLang === "both" ? "grid-cols-2" : "grid-cols-1"}`}>
+              {(siteLang === "zh" || siteLang === "both") && (
               <div>
                 <label className="block text-sm font-medium text-dark mb-1">說明（中文）</label>
                 <input type="text" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
               </div>
+              )}
+              {(siteLang === "en" || siteLang === "both") && (
               <div>
                 <label className="block text-sm font-medium text-dark mb-1">Description（English）</label>
                 <input type="text" value={form.descriptionEn} onChange={(e) => setForm({ ...form, descriptionEn: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
               </div>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-dark mb-1">地址 Address</label>
-                <input type="text" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="59 Shepard St, Cambridge, MA" className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+                <label className="block text-sm font-medium text-dark mb-1">地址 Address <span className="text-red-500">*</span></label>
+                <input type="text" value={form.address} onChange={(e) => { setForm({ ...form, address: e.target.value }); setVenueErrors(prev => prev.filter(x => x !== "address")); }} placeholder="59 Shepard St, Cambridge, MA" className={`w-full px-3 py-2 border rounded-lg text-sm ${venueErrors.includes("address") ? "border-red-400 bg-red-50" : "border-border"}`} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-dark mb-1">Google Maps URL</label>
@@ -2304,8 +2358,8 @@ function VenuesPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: stri
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-dark mb-1">類型 Type</label>
-              <input type="text" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="w-full px-3 py-2 border border-border rounded-lg text-sm" />
+              <label className="block text-sm font-medium text-dark mb-1">類型 Type <span className="text-red-500">*</span></label>
+              <input type="text" value={form.type} onChange={(e) => { setForm({ ...form, type: e.target.value }); setVenueErrors(prev => prev.filter(x => x !== "type")); }} className={`w-full px-3 py-2 border rounded-lg text-sm ${venueErrors.includes("type") ? "border-red-400 bg-red-50" : "border-border"}`} />
             </div>
             </div>
             <div className="px-6 py-4 border-t border-border shrink-0 flex justify-end gap-3">
