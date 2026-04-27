@@ -823,6 +823,7 @@ function PhotoCropModal({ src, initialCrop, onConfirm, onClose }: {
 function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: string) => void }) {
   const [speakers, setSpeakers] = useState<any[]>([]);
   const [filter, setFilter] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState({ name: "", nameCn: "", affiliation: "", affiliationZh: "", title: "", titleZh: "", bio: "", status: "pending" });
@@ -860,7 +861,13 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
     else { setSortKey(key); setSortDir("asc"); }
   };
 
-  const filtered = filter === "All" ? speakers : speakers.filter((s) => s.status?.toLowerCase() === filter.toLowerCase());
+  const byStatus = filter === "All" ? speakers : speakers.filter((s) => s.status?.toLowerCase() === filter.toLowerCase());
+  const filtered = searchQuery.trim()
+    ? byStatus.filter((s) => {
+        const q = searchQuery.toLowerCase();
+        return (s.name || "").toLowerCase().includes(q) || (s.nameCn || "").toLowerCase().includes(q) || (s.affiliation || "").toLowerCase().includes(q) || (s.affiliationZh || "").toLowerCase().includes(q);
+      })
+    : byStatus;
   const sorted = sortKey ? [...filtered].sort((a, b) => {
     if (sortKey === "updated") {
       const tA = new Date(a.last_updated || a.updated || 0).getTime();
@@ -961,6 +968,19 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
       formData.append("photoCrop", JSON.stringify(savedCrop));
       if (editing) {
         await pb.collection("speakers").update(editing.id, formData);
+        // Sync talk titles → papers collection (WYSIWYG)
+        try {
+          const validTitlesList = talkTitles.filter(t => t.en.trim() || t.zh.trim());
+          const existingPapers = await pb.collection("papers").getFullList({ filter: `speaker="${editing.id}"`, sort: "sortOrder" });
+          for (let i = 0; i < existingPapers.length; i++) {
+            if (i < validTitlesList.length) {
+              await pb.collection("papers").update(existingPapers[i].id, { titleEn: validTitlesList[i].en, titleZh: validTitlesList[i].zh });
+            } else {
+              // More papers than talk titles — clear the extra ones
+              await pb.collection("papers").update(existingPapers[i].id, { titleEn: "", titleZh: "" }).catch(() => {});
+            }
+          }
+        } catch { /* best-effort sync */ }
       } else {
         formData.append("site", siteId);
         await pb.collection("speakers").create(formData);
@@ -995,6 +1015,10 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
       const relatedSS = await pb.collection("session_speakers").getFullList({ filter: `speaker="${id}"` }).catch(() => []);
       for (const ss of relatedSS) {
         await pb.collection("session_speakers").delete(ss.id).catch(() => {});
+      }
+      const relatedPapers = await pb.collection("papers").getFullList({ filter: `speaker="${id}"` }).catch(() => []);
+      for (const p of relatedPapers) {
+        await pb.collection("papers").delete(p.id).catch(() => {});
       }
       await pb.collection("speakers").delete(id);
       setDeleting(false);
@@ -1041,9 +1065,22 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
           );
           })}
         </div>
-        <button onClick={openAdd} className="flex items-center gap-1.5 px-4 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light transition-colors">
-          <Plus className="w-4 h-4" /> 新增講者
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="搜尋講者..."
+              className="pl-8 pr-3 py-2 border border-border rounded-lg text-sm w-48 focus:outline-none focus:border-gold/50"
+            />
+            <svg className="w-4 h-4 text-muted absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
+            {searchQuery && <button onClick={() => setSearchQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-dark"><X className="w-3.5 h-3.5" /></button>}
+          </div>
+          <button onClick={openAdd} className="flex items-center gap-1.5 px-4 py-2 bg-gold text-white text-sm font-medium rounded-lg hover:bg-gold-light transition-colors">
+            <Plus className="w-4 h-4" /> 新增講者
+          </button>
+        </div>
       </div>
       <div className="bg-white rounded-xl border border-border overflow-hidden">
         <table className="w-full table-fixed">
