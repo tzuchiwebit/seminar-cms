@@ -1008,8 +1008,98 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
   };
 
   const [deleting, setDeleting] = useState(false);
-  const handleDelete = async (id: string) => {
-    if (!confirm("確定刪除？")) return;
+  const [confirmLoading, setConfirmLoading] = useState(false);
+  const [deleteCandidate, setDeleteCandidate] = useState<{
+    id: string;
+    name: string;
+    attachments: Array<{
+      sessionId: string;
+      sessionTitle: string;
+      talkTitle: string;
+      dayLabel: string;
+      timeLabel: string;
+      roleKey: string;
+      roleLabel: string;
+    }>;
+  } | null>(null);
+
+  const requestDelete = async (id: string) => {
+    const speaker = speakers.find((s) => s.id === id);
+    if (!speaker) return;
+    setConfirmLoading(true);
+    try {
+      const [sessionSpeakers, papers] = await Promise.all([
+        pb.collection("session_speakers").getFullList({
+          filter: `speaker="${id}"`,
+          expand: "session.day",
+        }).catch(() => []),
+        pb.collection("papers").getFullList({
+          filter: `speaker="${id}"`,
+        }).catch(() => []),
+      ]);
+
+      const papersBySessionId = new Map<string, any[]>();
+      for (const p of papers) {
+        const arr = papersBySessionId.get(p.session) || [];
+        arr.push(p);
+        papersBySessionId.set(p.session, arr);
+      }
+
+      const ROLE_LABELS: Record<string, string> = {
+        moderator: "主持",
+        speaker: "發表",
+        discussant: "與談",
+      };
+
+      const attachments = sessionSpeakers.map((ss: any) => {
+        const session = ss.expand?.session;
+        const day = session?.expand?.day;
+        const dayParts: string[] = [];
+        if (day?.dayNumber) dayParts.push(`Day ${day.dayNumber}`);
+        if (day?.date) {
+          const d = new Date(day.date);
+          if (!isNaN(d.getTime())) {
+            dayParts.push(`${d.getMonth() + 1}/${d.getDate()}`);
+          } else {
+            dayParts.push(day.date);
+          }
+        }
+        const sessionPapers = papersBySessionId.get(ss.session) || [];
+        const talkTitle = ss.role === "speaker"
+          ? sessionPapers.map((p: any) => p.titleZh || p.titleEn || "(未命名論文)").join("、")
+          : "";
+        return {
+          sessionId: ss.session,
+          sessionTitle: session?.titleZh || session?.titleEn || "(未命名場次)",
+          talkTitle,
+          dayLabel: dayParts.join(" · ") || "—",
+          timeLabel: session?.startTime || "—",
+          roleKey: ss.role || "speaker",
+          roleLabel: ROLE_LABELS[ss.role] || ss.role || "—",
+        };
+      });
+
+      setDeleteCandidate({
+        id,
+        name: speaker.name || speaker.nameCn || "(未命名)",
+        attachments,
+      });
+    } catch (e) {
+      console.error("Failed to load speaker attachments", e);
+      setDeleteCandidate({
+        id,
+        name: speaker.name || speaker.nameCn || "(未命名)",
+        attachments: [],
+      });
+    } finally {
+      setConfirmLoading(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteCandidate) return;
+    const id = deleteCandidate.id;
+    setDeleteCandidate(null);
     setDeleting(true);
     try {
       const relatedSS = await pb.collection("session_speakers").getFullList({ filter: `speaker="${id}"` }).catch(() => []);
@@ -1041,6 +1131,65 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
   return (
     <>
       {deleting && <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100]"><div className="bg-white rounded-xl px-8 py-6 flex flex-col items-center gap-3 shadow-xl"><div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" /><span className="text-sm font-semibold text-dark">刪除中...</span><span className="text-xs text-muted">刪除過程可能需要一些時間，請耐心等候</span></div></div>}
+      {confirmLoading && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[100]">
+          <div className="bg-white rounded-xl px-6 py-4 flex items-center gap-3 shadow-xl">
+            <div className="w-5 h-5 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
+            <span className="text-sm text-dark">檢查中...</span>
+          </div>
+        </div>
+      )}
+      {deleteCandidate && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100] p-4" onClick={() => setDeleteCandidate(null)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 pt-6 pb-4 border-b border-border">
+              <h3 className="font-serif text-lg font-bold text-dark">確定要刪除？</h3>
+              <p className="text-sm text-muted mt-1">講者：<span className="font-medium text-dark">{deleteCandidate.name}</span></p>
+            </div>
+            <div className="px-6 py-5 max-h-[50vh] overflow-y-auto">
+              {deleteCandidate.attachments.length === 0 ? (
+                <p className="text-sm text-muted">此講者目前沒有掛載到任何場次。確認後將永久刪除，無法復原。</p>
+              ) : (
+                <>
+                  <p className="text-sm text-dark mb-3">
+                    此講者已掛載到 <span className="font-semibold text-red-600">{deleteCandidate.attachments.length}</span> 個論文／場次。刪除後將一併移除：
+                  </p>
+                  <ul className="space-y-2">
+                    {deleteCandidate.attachments.map((a, i) => {
+                      const roleStyle =
+                        a.roleKey === "moderator" ? "bg-gold/15 text-gold" :
+                        a.roleKey === "discussant" ? "bg-muted/15 text-muted" :
+                        "bg-green/15 text-green";
+                      return (
+                        <li key={i} className="px-3 py-2.5 bg-cream/40 rounded-md border border-border">
+                          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                            <span className={`inline-flex items-center px-1.5 py-0.5 text-[10px] font-semibold rounded tracking-wide ${roleStyle}`}>{a.roleLabel}</span>
+                            <span className="inline-flex items-center px-1.5 py-0.5 bg-gold/15 text-gold text-[10px] font-semibold rounded tracking-wide">{a.dayLabel}</span>
+                            <span className="inline-flex items-center px-1.5 py-0.5 bg-dark/8 text-dark text-[10px] font-semibold rounded tracking-wide font-mono">{a.timeLabel}</span>
+                          </div>
+                          <div className="text-[10px] uppercase tracking-wider text-muted/70 font-medium">場次</div>
+                          <div className="text-sm font-medium text-dark mt-0.5">{a.sessionTitle}</div>
+                          {a.roleKey === "speaker" && a.talkTitle && (
+                            <>
+                              <div className="text-[10px] uppercase tracking-wider text-muted/70 font-medium mt-2">論文標題</div>
+                              <div className="text-sm text-dark mt-0.5">{a.talkTitle}</div>
+                            </>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <p className="text-xs text-red-600 mt-3 font-semibold">此操作無法復原</p>
+                </>
+              )}
+            </div>
+            <div className="px-6 py-4 bg-cream/30 border-t border-border flex justify-end gap-3">
+              <button onClick={() => setDeleteCandidate(null)} className="px-4 py-2 text-sm text-muted border border-border rounded-lg hover:bg-cream transition-colors">取消</button>
+              <button onClick={confirmDelete} className="px-4 py-2 text-sm text-white bg-red-600 rounded-lg hover:bg-red-700 font-medium transition-colors">確定刪除</button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* See More Toggle */}
       <div className="flex items-center justify-between mb-4 px-4 py-3 bg-white rounded-xl border border-border">
         <div className="flex items-center gap-3">
@@ -1144,7 +1293,7 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
                 <td className="px-4 py-4">
                   <div className="flex items-center justify-end gap-2">
                     <button onClick={() => openEdit(s)} className="p-1.5 text-muted hover:text-gold rounded-md hover:bg-gold/10"><Pencil className="w-4 h-4" /></button>
-                    <button onClick={() => handleDelete(s.id)} className="p-1.5 text-muted hover:text-red-600 rounded-md hover:bg-red-50"><Trash2 className="w-4 h-4" /></button>
+                    <button onClick={() => requestDelete(s.id)} className="p-1.5 text-muted hover:text-red-600 rounded-md hover:bg-red-50"><Trash2 className="w-4 h-4" /></button>
                   </div>
                 </td>
               </tr>
@@ -2291,9 +2440,10 @@ function VenuesPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: stri
     if (needZh && !form.nameZh.trim()) errors.push("nameZh");
     if (!form.address.trim()) errors.push("address");
     if (!form.type.trim()) errors.push("type");
+    if (!imageFile && !form.image) errors.push("image");
     if (errors.length > 0) {
       setVenueErrors(errors);
-      const labels: Record<string, string> = { name: "Name（EN）", nameZh: "名稱（中文）", address: "地址", type: "類型" };
+      const labels: Record<string, string> = { name: "Name（EN）", nameZh: "名稱（中文）", address: "地址", type: "類型", image: "場地圖片" };
       onToast?.(`請填寫：${errors.map(e => labels[e]).join("、")}`);
       return;
     }
@@ -2397,19 +2547,19 @@ function VenuesPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: stri
             <div className="px-6 pb-6 overflow-y-auto flex-1 space-y-4">
             {/* Image Upload */}
             <div>
-              <label className="block text-sm font-medium text-dark mb-1">場地圖片</label>
+              <label className="block text-sm font-medium text-dark mb-1">場地圖片 <span className="text-red-500">*</span></label>
               {(imagePreview || form.image) ? (
                 <div className="w-full aspect-[32/15] rounded-lg overflow-hidden border border-border mb-2">
                   <img src={imagePreview || form.image} alt="venue" className="w-full h-full object-cover object-center" />
                 </div>
               ) : (
-                <div className="w-full aspect-[32/15] rounded-lg border border-dashed border-border flex items-center justify-center text-muted text-sm mb-2">
+                <div className={`w-full aspect-[32/15] rounded-lg border border-dashed flex items-center justify-center text-sm mb-2 ${venueErrors.includes("image") ? "border-red-400 bg-red-50 text-red-500" : "border-border text-muted"}`}>
                   尚未上傳圖片
                 </div>
               )}
               <label className="px-3 py-1.5 bg-cream border border-border rounded-lg text-sm text-dark cursor-pointer hover:bg-cream-dark transition-colors">
                 上傳圖片
-                <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleImageSelect} />
+                <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { handleImageSelect(e); setVenueErrors(prev => prev.filter(x => x !== "image")); }} />
               </label>
               <span className="text-xs text-muted ml-2">建議 1920x800px</span>
             </div>

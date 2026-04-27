@@ -11,58 +11,73 @@ export default function FloatingRegister({
   showLangToggle?: boolean;
   googleFormUrl?: string;
 }) {
-  // Hide register button if no Google Form URL is set
   const showRegisterBtn = !!googleFormUrl;
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-center gap-3">
-      {/* Language Toggle — 中/EN circle design */}
+    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex flex-col items-end gap-3">
+      {/* Language Toggle — bigger circle */}
       {showLangToggle && (
         <button
           onClick={onToggleLang}
-          className="w-12 h-12 rounded-full border-2 border-dark/80 bg-white hover:bg-cream transition-colors flex items-center justify-center relative overflow-hidden shadow-md"
+          className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 border-dark/80 bg-white hover:bg-cream transition-colors flex items-center justify-center relative overflow-hidden shadow-md self-end"
+          aria-label="Toggle language"
         >
-          {/* Diagonal line */}
-          <div className="absolute w-[1.5px] h-[70%] bg-dark/40 rotate-[30deg]" />
-          {/* 中 top-left */}
-          <span className={`absolute top-[7px] left-[9px] font-serif text-[13px] leading-none transition-colors ${lang === "zh" ? "text-dark font-bold" : "text-dark/30"}`}>
+          <div className="absolute w-[2px] h-[70%] bg-dark/40 rotate-[30deg]" />
+          <span className={`absolute top-[8px] sm:top-[10px] left-[10px] sm:left-[12px] font-serif leading-none transition-all ${lang === "zh" ? "text-dark font-black text-[17px] sm:text-[19px]" : "text-muted font-semibold text-[13px] sm:text-[15px]"}`}>
             中
           </span>
-          {/* EN bottom-right */}
-          <span className={`absolute bottom-[7px] right-[7px] font-inter text-[10px] font-semibold leading-none transition-colors ${lang === "en" ? "text-dark" : "text-dark/30"}`}>
+          <span className={`absolute bottom-[8px] sm:bottom-[10px] right-[8px] sm:right-[10px] font-inter leading-none transition-all ${lang === "en" ? "text-dark font-bold text-[14px] sm:text-[16px]" : "text-muted font-semibold text-[10px] sm:text-[12px]"}`}>
             EN
           </span>
         </button>
       )}
 
-      {/* Register Button */}
-      {showRegisterBtn && <a
-        href={googleFormUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="group w-[72px] h-[72px] rounded-full relative block"
-      >
-        <span
-          className="absolute inset-0 rounded-full animate-[spin_3s_linear_infinite]"
-          style={{
-            background:
-              "conic-gradient(from 0deg, #1A1816 0%, #1A1816 50%, #9B7B2F 65%, #E8D5A3 78%, #FFFFFF 82%, #E8D5A3 86%, #9B7B2F 95%, #1A1816 100%)",
-          }}
-        />
-        <span className="absolute inset-[2px] rounded-full bg-dark group-hover:bg-dark/80 transition-colors" />
-        <span className="absolute inset-0 flex items-center justify-center text-center text-cream font-inter text-xs font-medium leading-tight z-10">
+      {/* Register Button — pill with diagonal arrow + subtle pulsing dot */}
+      {showRegisterBtn && (
+        <a
+          href={googleFormUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group relative inline-flex items-center gap-3 px-5 py-3 sm:px-7 sm:py-3.5 bg-dark text-cream rounded-full shadow-2xl hover:shadow-gold/40 hover:scale-105 transition-all duration-300 ring-1 ring-gold/30 hover:ring-gold/60 cursor-pointer"
+        >
           {lang === "zh" ? (
-            <>
-              立即
-              <br />
-              報名
-            </>
+            // CN — single row
+            <span className="font-serif font-bold text-base sm:text-lg whitespace-nowrap tracking-wide">
+              立即報名
+            </span>
           ) : (
-            <>
-              Register
-            </>
+            // EN — two rows stacked
+            <div className="flex flex-col items-center">
+              <span className="font-serif font-bold text-sm sm:text-lg whitespace-nowrap leading-none">
+                Click Here
+              </span>
+              <span className="text-xs sm:text-sm whitespace-nowrap opacity-90 leading-none mt-0.5">
+                to Register
+              </span>
+            </div>
           )}
-        </span>
-      </a>}
+
+          {/* Diagonal arrow — signals "opens in new tab" */}
+          <svg
+            className="w-4 h-4 sm:w-[18px] sm:h-[18px] text-gold transition-transform duration-300 ease-out group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <line x1="7" y1="17" x2="17" y2="7" />
+            <polyline points="8,7 17,7 17,16" />
+          </svg>
+
+          {/* Pulsing gold dot — "registration open" status indicator */}
+          <span className="absolute -top-1 -right-1 flex h-4 w-4 sm:h-[18px] sm:w-[18px] pointer-events-none">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gold opacity-70" />
+            <span className="relative inline-flex rounded-full h-4 w-4 sm:h-[18px] sm:w-[18px] bg-gold border border-cream/80" />
+          </span>
+        </a>
+      )}
     </div>
   );
 }
