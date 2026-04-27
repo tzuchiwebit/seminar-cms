@@ -958,8 +958,8 @@ function StickyDayTabs({ dayTabs, activeDay, setActiveDay, currentDay }: {
   }, []);
 
   return (
-    <div className={`fixed top-16 left-0 right-0 z-40 bg-white/95 backdrop-blur-sm border-b border-border transition-all duration-300 ${show ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2 pointer-events-none"}`}>
-      <div className="flex justify-start md:justify-center gap-1.5 py-2 px-4 md:px-6 overflow-x-auto scrollbar-hide">
+    <div className={`fixed top-14 md:top-16 left-0 right-0 z-40 bg-white/95 backdrop-blur-sm border-b border-border transition-all duration-300 ${show ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2 pointer-events-none"}`}>
+      <div className="flex gap-1.5 py-2 px-4 md:px-6 md:justify-center md:overflow-x-auto scrollbar-hide">
         {dayTabs.map((tab, i) => (
           <button
             key={i}
@@ -971,14 +971,14 @@ function StickyDayTabs({ dayTabs, activeDay, setActiveDay, currentDay }: {
                 window.scrollTo({ top: y, behavior: "smooth" });
               }
             }}
-            className={`font-inter text-[11px] md:text-[12px] px-2.5 md:px-3.5 py-1.5 rounded-full border transition-colors flex flex-col items-center gap-0.5 shrink-0 ${
+            className={`font-inter text-[11px] md:text-[12px] px-2 md:px-3.5 py-1.5 rounded-full border transition-colors flex flex-col items-center gap-0.5 flex-1 min-w-0 md:flex-initial md:shrink-0 ${
               activeDay === i
                 ? "bg-dark text-cream border-dark"
                 : "bg-transparent text-muted border-border hover:border-dark hover:text-dark"
             }`}
           >
-            <span className="font-medium whitespace-nowrap">{tab.label}</span>
-            <span className={`text-[9px] md:text-[10px] font-bold whitespace-nowrap ${activeDay === i ? "text-gold" : "text-gold/60"}`}>{tab.theme}</span>
+            <span className="font-medium w-full text-center truncate md:whitespace-nowrap md:overflow-visible">{tab.label}</span>
+            <span className={`text-[9px] md:text-[10px] font-bold w-full text-center truncate md:whitespace-nowrap md:overflow-visible ${activeDay === i ? "text-gold" : "text-gold/60"}`}>{tab.theme}</span>
           </button>
         ))}
       </div>

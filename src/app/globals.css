@@ -27,6 +27,7 @@
   100% { left: 100%; }
 }
 
+
 @utility scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
