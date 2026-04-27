@@ -124,6 +124,18 @@ export async function getSiteBySlug(slug: string) {
   return toPbSite(rows[0]);
 }
 
+/**
+ * Returns the slug of the first published site, sorted by id (creation order).
+ * Used to resolve the root URL `/` when no slug is in the path. Returns null
+ * if no published site exists.
+ */
+export async function getDefaultPublishedSlug(): Promise<string | null> {
+  const rows = await drustQueryObjects<{ slug: string }>(
+    `SELECT slug FROM sites WHERE status = 'published' ORDER BY id ASC LIMIT 1`
+  );
+  return rows[0]?.slug ?? null;
+}
+
 export async function getSiteSettings(siteId: string) {
   const rows = await drustQueryObjects<{ key: string; value: string }>(
     `SELECT st.key, st.value FROM site_settings st

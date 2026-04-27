@@ -7,6 +7,23 @@ const pbServer = new PocketBase(
 );
 pbServer.autoCancellation(false);
 
+/**
+ * Returns the slug of the first published site, sorted by created (oldest first).
+ * Used to resolve the root URL `/` when no slug is in the path. Returns null
+ * if no published site exists.
+ */
+export async function getDefaultPublishedSlug(): Promise<string | null> {
+  try {
+    const sites = await pbServer.collection("sites").getFullList({
+      filter: `status="published"`,
+      sort: "created",
+    });
+    return sites[0]?.slug ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchSiteDataForBuild(slug: string) {
   const site = await pbServer.collection("sites").getFirstListItem(`slug="${slug}"`);
 

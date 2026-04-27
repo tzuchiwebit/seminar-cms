@@ -1,14 +1,22 @@
 import type { Metadata } from "next";
-import { fetchSiteDataForBuild } from "@/lib/db-server";
+import { fetchSiteDataForBuild, getDefaultPublishedSlug } from "@/lib/db-server";
 import PublicPageClient from "./PublicPageClient";
 
 // Render at request time so admin saves are immediately visible.
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+// Resolve the slug to render: explicit URL slug, else first published site,
+// else "symposium" as a last-resort fallback so the route doesn't crash.
+async function resolveSlug(urlSlug: string | undefined): Promise<string> {
+  if (urlSlug) return urlSlug;
+  const defaultSlug = await getDefaultPublishedSlug().catch(() => null);
+  return defaultSlug || "symposium";
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ slug?: string[] }> }): Promise<Metadata> {
   const { slug } = await params;
-  const siteSlug = slug?.[0] || "symposium";
+  const siteSlug = await resolveSlug(slug?.[0]);
   try {
     const data = await fetchSiteDataForBuild(siteSlug);
     const s = data.settings;
@@ -48,7 +56,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug?: st
 
 export default async function Page({ params }: { params: Promise<{ slug?: string[] }> }) {
   const { slug } = await params;
-  const siteSlug = slug?.[0] || "symposium";
+  const siteSlug = await resolveSlug(slug?.[0]);
 
   let preloadedData = null;
   try {
