@@ -1238,6 +1238,16 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
                     <Plus className="w-3 h-3" /> 新增題目
                   </button>
                 </div>
+                {talkTitles.length > 0 && (
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="w-5 shrink-0" />
+                  <div className={`flex-1 grid gap-2 ${siteLang === "both" ? "grid-cols-2" : "grid-cols-1"}`}>
+                    {(siteLang === "en" || siteLang === "both") && <span className="text-xs text-muted">Title（EN） <span className="text-red-500">*</span></span>}
+                    {(siteLang === "zh" || siteLang === "both") && <span className="text-xs text-muted">題目（中文） <span className="text-red-500">*</span></span>}
+                  </div>
+                  <span className="w-8 shrink-0" />
+                </div>
+                )}
                 <div className="space-y-2">
                   {talkTitles.map((t, i) => (
                     <div key={i} className="flex items-start gap-2">
@@ -1248,7 +1258,7 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
                           type="text"
                           value={t.en}
                           onChange={(e) => { const arr = [...talkTitles]; arr[i] = { ...arr[i], en: e.target.value }; setSpeakerErrors(prev => prev.filter(x => x !== `talkTitle_en_${i}`)); setTalkTitles(arr); }}
-                          placeholder="Talk title (EN) *"
+                          placeholder="Talk title (EN)"
                           className={`w-full px-3 py-2 border rounded-lg text-sm ${speakerErrors.includes(`talkTitle_en_${i}`) ? "border-red-400 bg-red-50" : "border-border"}`}
                         />
                         )}
@@ -1257,7 +1267,7 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
                           type="text"
                           value={t.zh}
                           onChange={(e) => { const arr = [...talkTitles]; arr[i] = { ...arr[i], zh: e.target.value }; setSpeakerErrors(prev => prev.filter(x => x !== `talkTitle_zh_${i}`)); setTalkTitles(arr); }}
-                          placeholder="演講題目（中文） *"
+                          placeholder="演講題目（中文）"
                           className={`w-full px-3 py-2 border rounded-lg text-sm ${speakerErrors.includes(`talkTitle_zh_${i}`) ? "border-red-400 bg-red-50" : "border-border"}`}
                         />
                         )}
@@ -2020,6 +2030,18 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
               {(
                 <div className="border-t border-border pt-5 space-y-3">
                   <h4 className="text-sm font-semibold text-dark">講者與論文</h4>
+                  {/* Column labels */}
+                  {(sessionModerators.length > 0 || sessionSpeakers.length > 0 || sessionDiscussants.length > 0) && (
+                    <div className="flex items-center gap-2 px-3 py-0">
+                      <span className="shrink-0 w-[38px]" />
+                      <span className="shrink-0 w-28 text-xs text-muted">講者</span>
+                      <div className="flex-1 flex gap-1.5">
+                        {(siteLang === "en" || siteLang === "both") && <span className="flex-1 text-xs text-muted">論文標題（EN） <span className="text-red-500">*</span></span>}
+                        {(siteLang === "zh" || siteLang === "both") && <span className="flex-1 text-xs text-muted">論文標題（中文） <span className="text-red-500">*</span></span>}
+                      </div>
+                      <span className="w-5 shrink-0" />
+                    </div>
+                  )}
 
                   {/* List of assigned speakers */}
                   {[
@@ -2045,7 +2067,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
                                 type="text"
                                 value={paperTitles[paperKey] || paperTitles[id] || ""}
                                 onChange={(e) => setPaperTitles({ ...paperTitles, [paperKey]: e.target.value })}
-                                placeholder="Paper title (EN) *"
+                                placeholder="Paper title (EN)"
                                 className="flex-1 px-2 py-1 border border-border rounded text-xs"
                               />
                             )}
@@ -2054,7 +2076,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
                                 type="text"
                                 value={paperTitlesZh[paperKey] || paperTitlesZh[id] || ""}
                                 onChange={(e) => setPaperTitlesZh({ ...paperTitlesZh, [paperKey]: e.target.value })}
-                                placeholder="論文標題（中文） *"
+                                placeholder="論文標題（中文）"
                                 className="flex-1 px-2 py-1 border border-border rounded text-xs"
                               />
                             )}
