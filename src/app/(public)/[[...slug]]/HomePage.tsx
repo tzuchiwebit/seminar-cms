@@ -659,8 +659,8 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
 
                   {session.papers && (
                     <div className="mt-3 space-y-2">
-                      {session.papers.map((paper) => (
-                        <div key={paper.title} className="border border-border rounded-md px-4 py-3 bg-cream/50">
+                      {session.papers.map((paper, pIdx) => (
+                        <div key={`${paper.title}-${pIdx}`} className="border border-border rounded-md px-4 py-3 bg-cream/50">
                           <p className="font-serif text-dark text-[13px] font-medium">{paper.title}</p>
                           <p className="font-inter text-[12px] mt-0.5">
                             <span className="font-medium text-dark">{paper.author}</span>
