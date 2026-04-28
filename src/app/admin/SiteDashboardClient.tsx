@@ -1099,7 +1099,7 @@ function SpeakersPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: st
         if (day?.date) {
           const d = new Date(day.date);
           if (!isNaN(d.getTime())) {
-            dayParts.push(`${d.getMonth() + 1}/${d.getDate()}`);
+            dayParts.push(`${d.getUTCMonth() + 1}/${d.getUTCDate()}`);
           } else {
             dayParts.push(day.date);
           }
@@ -2049,7 +2049,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
             {days.map((d: any, i: number) => (
               <button key={d.id || i} onClick={() => setActiveDay(i)} className={`px-4 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeDay === i ? "bg-dark text-cream" : "bg-cream border border-border text-muted hover:text-dark hover:border-dark/20"}`}>
                 <span>Day {i + 1}</span>
-                {d.date && <span className="ml-1.5 opacity-60">· {new Date(d.date).toLocaleDateString("zh-TW", { month: "numeric", day: "numeric" })}</span>}
+                {d.date && <span className="ml-1.5 opacity-60">· {new Date(d.date).toLocaleDateString("zh-TW", { month: "numeric", day: "numeric", timeZone: "UTC" })}</span>}
               </button>
             ))}
           </div>
@@ -2069,7 +2069,7 @@ function ProgrammePanel({ siteId, onToast }: { siteId: string; onToast?: (msg: s
               </p>
               <p className="text-xs text-muted mt-0.5">
                 {day.titleZh && day.titleEn && <span>{day.titleZh} · </span>}
-                {day.date && new Date(day.date).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+                {day.date && new Date(day.date).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "UTC" })}
               </p>
             </div>
           </div>

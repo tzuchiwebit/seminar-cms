@@ -176,10 +176,10 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
     const dt = new Date(d.date);
     return {
       label: lang === "en"
-        ? `${dt.getMonth() + 1}/${dt.getDate()} (${weekdayNamesEn[dt.getDay()]})`
-        : `${dt.getMonth() + 1}/${dt.getDate()} (${weekdayNames[dt.getDay()]})`,
-      date: `${dt.getMonth() + 1}.${dt.getDate()}`,
-      weekday: lang === "en" ? ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][dt.getDay()] : `星期${weekdayNames[dt.getDay()]}`,
+        ? `${dt.getUTCMonth() + 1}/${dt.getUTCDate()} (${weekdayNamesEn[dt.getUTCDay()]})`
+        : `${dt.getUTCMonth() + 1}/${dt.getUTCDate()} (${weekdayNames[dt.getUTCDay()]})`,
+      date: `${dt.getUTCMonth() + 1}.${dt.getUTCDate()}`,
+      weekday: lang === "en" ? ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][dt.getUTCDay()] : `星期${weekdayNames[dt.getUTCDay()]}`,
       theme: lang === "en" ? (d.titleEn || d.titleZh) : d.titleZh,
     };
   });
@@ -221,8 +221,8 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
   const lastDate = days.length > 0 ? new Date(days[days.length - 1].date) : new Date();
   const monthNamesEn = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const dateRange = lang === "en"
-    ? `${monthNamesEn[firstDate.getMonth()]} ${firstDate.getDate()}–${lastDate.getDate()}, ${firstDate.getFullYear()}`
-    : `${firstDate.getFullYear()}年${firstDate.getMonth() + 1}月${firstDate.getDate()}日─${lastDate.getDate()}日`;
+    ? `${monthNamesEn[firstDate.getUTCMonth()]} ${firstDate.getUTCDate()}–${lastDate.getUTCDate()}, ${firstDate.getUTCFullYear()}`
+    : `${firstDate.getUTCFullYear()}年${firstDate.getUTCMonth() + 1}月${firstDate.getUTCDate()}日─${lastDate.getUTCDate()}日`;
   const mainVenue = venues.find((v: any) => v.type === "main");
   const infoCards = [
     { icon: Calendar, title: dateRange, sub: `${days.length}${lang === "en" ? " Days" : "天學術交流與展覽"}` },
@@ -278,7 +278,7 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
   const speakerSessionMap = new Map<string, { tags: string[]; papers: string[] }>();
   for (const day of days) {
     const dt = new Date(day.date);
-    const dateStr = `${dt.getMonth() + 1}/${dt.getDate()}`;
+    const dateStr = `${dt.getUTCMonth() + 1}/${dt.getUTCDate()}`;
     for (const session of (day.sessions || [])) {
       for (const ss of (session.sessionSpeakers || [])) {
         const spkId = ss.speaker?.id;
