@@ -462,8 +462,8 @@ function DashboardContent() {
                     <td className="px-6 py-4 text-sm text-muted">
                       {site.eventStartDate ? (
                         <span>
-                          {new Date(site.eventStartDate).toLocaleDateString("zh-TW")}
-                          {site.eventEndDate && <> — {new Date(site.eventEndDate).toLocaleDateString("zh-TW")}</>}
+                          {new Date(site.eventStartDate).toLocaleDateString("zh-TW", { timeZone: "UTC" })}
+                          {site.eventEndDate && <> — {new Date(site.eventEndDate).toLocaleDateString("zh-TW", { timeZone: "UTC" })}</>}
                         </span>
                       ) : "—"}
                     </td>

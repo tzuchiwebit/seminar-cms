@@ -40,6 +40,7 @@ export default function RootLayout({
   return (
     <html
       lang="zh-Hant"
+      data-scroll-behavior="smooth"
       className={`${inter.variable} ${notoSerifTC.variable} ${notoSansTC.variable}`}
     >
       <body className="antialiased">
