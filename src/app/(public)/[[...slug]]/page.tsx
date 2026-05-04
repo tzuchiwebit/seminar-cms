@@ -3,10 +3,6 @@ import PocketBase from "pocketbase";
 import { fetchSiteDataForBuild } from "@/lib/pb-server";
 import PublicPageClient from "./PublicPageClient";
 
-// Re-fetch on each request in dev so admin changes show on refresh without rebuild.
-// In production with `output: "export"`, the page is still pre-rendered statically.
-export const revalidate = 0;
-
 export async function generateMetadata({ params }: { params: Promise<{ slug?: string[] }> }): Promise<Metadata> {
   const { slug } = await params;
   const siteSlug = slug?.[0] || "symposium";
