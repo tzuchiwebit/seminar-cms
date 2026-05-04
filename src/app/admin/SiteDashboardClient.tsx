@@ -94,12 +94,16 @@ import {
   ClipboardList,
   Clock,
   Music,
+  Upload,
+  FolderOpen,
+  ChevronUp,
+  Zap,
 } from "lucide-react";
 
 /* ═══════════════════════════════════════════
    NAV ITEMS
    ═══════════════════════════════════════════ */
-type Tab = "appearance" | "description" | "tour" | "programme" | "venues" | "speakers" | "registration" | "styles" | "settings";
+type Tab = "appearance" | "description" | "tour" | "programme" | "venues" | "speakers" | "other" | "registration" | "styles" | "settings";
 
 const navItems: { label: string; id: Tab; icon: React.ComponentType<{ className?: string }> }[] = [
   { label: "網站外觀", id: "appearance", icon: Globe },
@@ -108,7 +112,8 @@ const navItems: { label: string; id: Tab; icon: React.ComponentType<{ className?
   { label: "議程", id: "programme", icon: Calendar },
   { label: "場地", id: "venues", icon: MapPin },
   { label: "講者", id: "speakers", icon: Users },
-  { label: "報名設定", id: "registration", icon: ClipboardList },
+  { label: "其他", id: "other", icon: FolderOpen },
+  { label: "快捷按鈕", id: "registration", icon: Zap },
   { label: "樣式設定", id: "styles", icon: Palette },
   { label: "設定", id: "settings", icon: Settings },
 ];
@@ -116,7 +121,7 @@ const navItems: { label: string; id: Tab; icon: React.ComponentType<{ className?
 /* ═══════════════════════════════════════════
    SECTION VISIBILITY
    ═══════════════════════════════════════════ */
-type SectionKey = "description" | "tour" | "programme" | "venues" | "speakers";
+type SectionKey = "description" | "tour" | "programme" | "venues" | "speakers" | "other";
 
 const sectionLabels: Record<SectionKey, string> = {
   description: "活動簡介",
@@ -124,6 +129,7 @@ const sectionLabels: Record<SectionKey, string> = {
   programme: "議程",
   venues: "場地",
   speakers: "講者",
+  other: "其他",
 };
 
 /* ═══════════════════════════════════════════
@@ -2624,38 +2630,60 @@ function VenuesPanel({ siteId, onToast }: { siteId: string; onToast?: (msg: stri
    REGISTRATION SETTINGS PANEL
    ═══════════════════════════════════════════ */
 
-function RegistrationSettingsPanel({ siteId, onToast }: { siteId: string; onToast: (msg: string) => void }) {
+function RegistrationSettingsPanel({ siteId, onToast, onStatusChange }: { siteId: string; onToast: (msg: string) => void; onStatusChange?: (status: { register: boolean }) => void }) {
   const [googleFormUrl, setGoogleFormUrl] = useState("");
+  const [registerVisible, setRegisterVisible] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [alertMsg, setAlertMsg] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       try {
         const data = await loadSettings(siteId);
         setGoogleFormUrl(data.registration_google_form_url || "");
+        setRegisterVisible(data.register_btn_visible !== "false");
       } catch { /* ignore */ }
       setLoading(false);
     })();
   }, [siteId]);
+
+  const onStatusChangeRef = useRef(onStatusChange);
+  onStatusChangeRef.current = onStatusChange;
+  useEffect(() => {
+    if (loading) return;
+    onStatusChangeRef.current?.({
+      register: !!googleFormUrl.trim() && registerVisible,
+    });
+  }, [googleFormUrl, registerVisible, loading]);
+
+  const toggleRegisterVisible = async () => {
+    const next = !registerVisible;
+    if (next && !googleFormUrl.trim()) {
+      setAlertMsg("請先設定 Google 表單連結，才能發布報名按鈕。");
+      return;
+    }
+    setRegisterVisible(next);
+    try {
+      await upsertSetting(siteId, "register_btn_visible", next ? "true" : "false");
+      await touchLastUpdated(siteId);
+      onToast(`報名按鈕 ${next ? "已顯示" : "已隱藏"}`);
+    } catch (e) { console.error(e); }
+  };
 
   const handleSave = useCallback(async () => {
     setSaving(true);
     try {
       await upsertSetting(siteId, "registration_google_form_url", googleFormUrl.trim());
       await touchLastUpdated(siteId);
-      onToast("已儲存報名設定");
+      onToast("已儲存快捷按鈕設定");
     } catch (e) {
-      console.error("Failed to save registration settings", e);
+      console.error("Failed to save quick-action buttons settings", e);
       onToast(`儲存失敗：${(e as any)?.message || "請重試"}`);
     }
     setSaving(false);
   }, [siteId, googleFormUrl, onToast]);
 
-  const handleSaveRef = useRef(handleSave);
-  handleSaveRef.current = handleSave;
-
-  // Auto-save on unmount
   const googleFormUrlRef = useRef(googleFormUrl);
   googleFormUrlRef.current = googleFormUrl;
   const onToastRef = useRef(onToast);
@@ -2666,7 +2694,6 @@ function RegistrationSettingsPanel({ siteId, onToast }: { siteId: string; onToas
       (async () => {
         try {
           await upsertSetting(siteId, "registration_google_form_url", googleFormUrlRef.current.trim());
-          onToastRef.current?.("報名設定：自動更新成功");
         } catch { /* silent */ }
       })();
     };
@@ -2678,33 +2705,406 @@ function RegistrationSettingsPanel({ siteId, onToast }: { siteId: string; onToas
     <>
       <button data-section-save onClick={handleSave} disabled={saving} className="hidden">儲存</button>
 
-      {/* Google Form URL */}
       <div className="bg-white rounded-xl border border-border overflow-hidden mb-6">
-        <div className="px-6 py-4 border-b border-border">
-          <h3 className="font-semibold text-dark">報名設定</h3>
-          <p className="text-xs text-muted mt-0.5">設定報名表單連結與相關功能</p>
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-dark">報名按鈕</h3>
+            <p className="text-xs text-muted mt-0.5">設定報名表單連結與按鈕顯示狀態</p>
+          </div>
+          <SectionToggle enabled={registerVisible} onToggle={toggleRegisterVisible} />
+        </div>
+        <div className={`px-6 py-3 border-b border-border flex items-center gap-3 ${registerVisible ? "bg-green/5" : "bg-muted/5"}`}>
+          <span className={`w-2 h-2 rounded-full ${registerVisible ? "bg-green" : "bg-muted/40"}`} />
+          <span className="text-sm text-dark font-medium">
+            此按鈕在公開網站{registerVisible ? "已顯示" : "已隱藏"}
+          </span>
         </div>
         <div className="p-6">
-        <label className="block text-sm font-medium text-dark mb-1">Google 表單連結</label>
-        <p className="text-xs text-muted mb-3">設定後，前台「立即報名」按鈕將會連結至此 Google 表單。若留空，報名按鈕將不會顯示。</p>
-        <input
-          type="url"
-          value={googleFormUrl}
-          onChange={(e) => setGoogleFormUrl(e.target.value)}
-          placeholder="https://docs.google.com/forms/d/e/..."
-          className="w-full px-4 py-2.5 bg-cream/30 border border-border rounded-lg text-sm text-dark placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-gold/30 focus:border-gold"
-        />
-        {googleFormUrl && (
-          <div className="mt-3 flex items-center gap-2">
-            <span className="inline-block w-2 h-2 rounded-full bg-green" />
-            <span className="text-xs text-green font-medium">已設定報名連結</span>
-            <a href={googleFormUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-gold hover:underline ml-auto">
-              預覽表單 ↗
-            </a>
-          </div>
-        )}
+          <label className="block text-sm font-medium text-dark mb-1">Google 表單連結</label>
+          <p className="text-xs text-muted mb-3">設定後，前台「立即報名」按鈕將會連結至此 Google 表單。若留空，報名按鈕將不會顯示。</p>
+          <input
+            type="url"
+            value={googleFormUrl}
+            onChange={(e) => setGoogleFormUrl(e.target.value)}
+            placeholder="https://docs.google.com/forms/d/e/..."
+            className="w-full px-4 py-2.5 bg-cream/30 border border-border rounded-lg text-sm text-dark placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-gold/30 focus:border-gold"
+          />
+          {googleFormUrl && (
+            <div className="mt-3 flex items-center gap-2">
+              <span className="inline-block w-2 h-2 rounded-full bg-green" />
+              <span className="text-xs text-green font-medium">已設定報名連結</span>
+              <a href={googleFormUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-gold hover:underline ml-auto">
+                預覽表單 ↗
+              </a>
+            </div>
+          )}
         </div>
       </div>
+
+      {alertMsg && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100]" onClick={() => setAlertMsg(null)}>
+          <div className="bg-white rounded-xl px-6 py-5 max-w-sm mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h4 className="font-semibold text-dark mb-2">無法發布</h4>
+            <p className="text-sm text-muted mb-5">{alertMsg}</p>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setAlertMsg(null)}
+                className="px-4 py-2 bg-dark text-cream rounded-lg text-sm font-medium hover:bg-dark/90 transition-colors"
+              >
+                我知道了
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ═══════════════════════════════════════════
+   OTHER SECTION PANEL — admin CMS for the customizable "其他" section
+   Stores: section_other_title_zh / _en in site_settings; files in `uploads`
+   collection with category="other", `label` (JSON {zh, en}), `sortOrder`.
+   ═══════════════════════════════════════════ */
+type OtherFile = {
+  id: string;
+  file: string;
+  label?: string;
+  sortOrder?: number;
+};
+
+function parseLabel(label: string | undefined): { zh: string; en: string } {
+  if (!label) return { zh: "", en: "" };
+  try {
+    const parsed = JSON.parse(label);
+    return { zh: parsed.zh || "", en: parsed.en || "" };
+  } catch {
+    return { zh: label, en: "" };
+  }
+}
+
+function OtherSectionPanel({ siteId, onToast }: { siteId: string; onToast: (msg: string) => void }) {
+  const [titleZh, setTitleZh] = useState("");
+  const [titleEn, setTitleEn] = useState("");
+  const [files, setFiles] = useState<OtherFile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [deleteCandidate, setDeleteCandidate] = useState<OtherFile | null>(null);
+  const FILE_MAX_BYTES = 20 * 1024 * 1024; // 20 MB
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await loadSettings(siteId);
+        setTitleZh(data.section_other_title_zh || "");
+        setTitleEn(data.section_other_title_en || "");
+      } catch (e) { console.error("Failed to load settings", e); }
+
+      // Try sortOrder first; if the field doesn't exist yet, fall back to created.
+      let records: any[] = [];
+      try {
+        records = await pb.collection("uploads").getFullList({
+          filter: `site="${siteId}" && category="other"`,
+          sort: "sortOrder",
+        });
+      } catch (e: any) {
+        console.warn("Sort by sortOrder failed (field may not exist), falling back:", e?.data || e?.message || e);
+        try {
+          records = await pb.collection("uploads").getFullList({
+            filter: `site="${siteId}" && category="other"`,
+          });
+        } catch (e2: any) {
+          console.error("Failed to load uploads:", e2?.data || e2?.message || e2);
+        }
+      }
+      setFiles(records as unknown as OtherFile[]);
+      setLoading(false);
+    })();
+  }, [siteId]);
+
+  const handleSave = useCallback(async () => {
+    setSaving(true);
+    try {
+      await batchUpsertSettings(siteId, [
+        { key: "section_other_title_zh", value: titleZh.trim() },
+        { key: "section_other_title_en", value: titleEn.trim() },
+      ]);
+      await touchLastUpdated(siteId);
+      onToast("已儲存其他區塊設定");
+    } catch (e: any) {
+      console.error("Failed to save other section", e);
+      onToast(`儲存失敗：${e?.message || "請重試"}`);
+    }
+    setSaving(false);
+  }, [siteId, titleZh, titleEn, onToast]);
+
+  // Auto-save title on unmount
+  const titleZhRef = useRef(titleZh);
+  titleZhRef.current = titleZh;
+  const titleEnRef = useRef(titleEn);
+  titleEnRef.current = titleEn;
+  useEffect(() => {
+    return () => {
+      if (loading) return;
+      (async () => {
+        try {
+          await batchUpsertSettings(siteId, [
+            { key: "section_other_title_zh", value: titleZhRef.current.trim() },
+            { key: "section_other_title_en", value: titleEnRef.current.trim() },
+          ]);
+        } catch { /* silent */ }
+      })();
+    };
+  }, [loading, siteId]);
+
+  const handleAddFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > FILE_MAX_BYTES) {
+      onToast(`檔案過大：${(file.size / 1024 / 1024).toFixed(1)} MB（上限 20 MB）`);
+      return;
+    }
+    setUploading(true);
+    try {
+      const baseName = file.name.replace(/\.[^.]+$/, "");
+      const formData = new FormData();
+      formData.append("site", siteId);
+      formData.append("file", file);
+      formData.append("category", "other");
+      formData.append("label", JSON.stringify({ zh: baseName, en: baseName }));
+      formData.append("sortOrder", String(files.length));
+      const record = await pb.collection("uploads").create(formData);
+      setFiles((prev) => [...prev, record as unknown as OtherFile]);
+      await touchLastUpdated(siteId);
+      onToast("檔案已上傳");
+    } catch (err: any) {
+      console.error("File upload failed:", err);
+      onToast(`上傳失敗：${err?.message || "請重試"}`);
+    }
+    setUploading(false);
+  };
+
+  const updateLabel = async (id: string, lang: "zh" | "en", value: string) => {
+    setFiles((prev) =>
+      prev.map((f) => {
+        if (f.id !== id) return f;
+        const cur = parseLabel(f.label);
+        const next = { ...cur, [lang]: value };
+        return { ...f, label: JSON.stringify(next) };
+      })
+    );
+  };
+
+  const persistLabel = async (id: string) => {
+    const f = files.find((x) => x.id === id);
+    if (!f) return;
+    try {
+      await pb.collection("uploads").update(id, { label: f.label });
+      await touchLastUpdated(siteId);
+    } catch (e: any) {
+      console.error("Failed to update label", e);
+      onToast(`更新失敗：${e?.message || "請重試"}`);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteCandidate) return;
+    const id = deleteCandidate.id;
+    setDeleteCandidate(null);
+    try {
+      await pb.collection("uploads").delete(id);
+      setFiles((prev) => prev.filter((f) => f.id !== id));
+      await touchLastUpdated(siteId);
+      onToast("檔案已刪除");
+    } catch (e: any) {
+      console.error("Failed to delete file", e);
+      onToast(`刪除失敗：${e?.message || "請重試"}`);
+    }
+  };
+
+  const moveFile = async (id: string, direction: "up" | "down") => {
+    const index = files.findIndex((f) => f.id === id);
+    if (index < 0) return;
+    if (direction === "up" && index === 0) return;
+    if (direction === "down" && index === files.length - 1) return;
+    const swapIndex = direction === "up" ? index - 1 : index + 1;
+    const next = [...files];
+    [next[index], next[swapIndex]] = [next[swapIndex], next[index]];
+    setFiles(next);
+    try {
+      await Promise.all(
+        next.map((f, i) =>
+          pb.collection("uploads").update(f.id, { sortOrder: i })
+        )
+      );
+      await touchLastUpdated(siteId);
+    } catch (e) {
+      console.error("Failed to reorder", e);
+    }
+  };
+
+  if (loading) return <div className="text-sm text-muted py-10 text-center">載入中...</div>;
+
+  return (
+    <>
+      <button data-section-save onClick={handleSave} disabled={saving} className="hidden">儲存</button>
+
+      {/* Section Title */}
+      <div className="bg-white rounded-xl border border-border overflow-hidden mb-6">
+        <div className="px-6 py-4 border-b border-border">
+          <h3 className="font-semibold text-dark">區塊標題</h3>
+          <p className="text-xs text-muted mt-0.5">此區塊顯示在公開網站「講者」之後。標題支援中英文雙語，預設為「其他」。</p>
+        </div>
+        <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-dark mb-1">中文標題</label>
+            <input
+              type="text"
+              value={titleZh}
+              onChange={(e) => setTitleZh(e.target.value)}
+              placeholder="例如：其他資料 / 下載資料"
+              className="w-full px-4 py-2.5 bg-cream/30 border border-border rounded-lg text-sm text-dark placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-gold/30 focus:border-gold"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-dark mb-1">英文標題（English Title）</label>
+            <input
+              type="text"
+              value={titleEn}
+              onChange={(e) => setTitleEn(e.target.value)}
+              placeholder="e.g. Resources / Other"
+              className="w-full px-4 py-2.5 bg-cream/30 border border-border rounded-lg text-sm text-dark placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-gold/30 focus:border-gold"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* File list */}
+      <div className="bg-white rounded-xl border border-border overflow-hidden mb-6">
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <h3 className="font-semibold text-dark">檔案列表</h3>
+            <p className="text-xs text-muted mt-0.5">每個檔案都會在公開網站顯示成一張卡片，可上傳多個檔案（每個上限 20 MB）。</p>
+          </div>
+          <label className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border cursor-pointer transition-colors shrink-0 ${uploading ? "bg-muted/10 border-border text-muted cursor-not-allowed" : "bg-gold/10 border-gold/30 text-dark hover:bg-gold/20"}`}>
+            {uploading ? (
+              <>
+                <div className="w-4 h-4 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
+                上傳中...
+              </>
+            ) : (
+              <>
+                <Plus className="w-4 h-4" />
+                新增檔案
+              </>
+            )}
+            <input type="file" className="hidden" disabled={uploading} onChange={handleAddFile} />
+          </label>
+        </div>
+
+        {files.length === 0 ? (
+          <div className="px-6 py-12 text-center text-sm text-muted">
+            還沒有檔案。點擊上方「新增檔案」開始上傳。
+          </div>
+        ) : (
+          <ul className="divide-y divide-border">
+            {files.map((file, index) => {
+              const fileUrl = pb.files.getURL(file as any, file.file);
+              const lbl = parseLabel(file.label);
+              return (
+                <li key={file.id} className="px-6 py-4 flex items-start gap-4">
+                  <div className="flex flex-col gap-0.5 shrink-0 pt-2">
+                    <button
+                      onClick={() => moveFile(file.id, "up")}
+                      disabled={index === 0}
+                      className="p-1 text-muted hover:text-dark disabled:opacity-30 disabled:cursor-not-allowed"
+                      aria-label="上移"
+                    >
+                      <ChevronUp className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => moveFile(file.id, "down")}
+                      disabled={index === files.length - 1}
+                      className="p-1 text-muted hover:text-dark disabled:opacity-30 disabled:cursor-not-allowed"
+                      aria-label="下移"
+                    >
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <FileText className="w-6 h-6 text-gold shrink-0 mt-2" />
+                  <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs text-muted mb-1">中文名稱</label>
+                      <input
+                        type="text"
+                        value={lbl.zh}
+                        onChange={(e) => updateLabel(file.id, "zh", e.target.value)}
+                        onBlur={() => persistLabel(file.id)}
+                        placeholder="例如：議程手冊"
+                        className="w-full px-3 py-2 bg-cream/30 border border-border rounded-lg text-sm text-dark placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-gold/30 focus:border-gold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-muted mb-1">英文名稱</label>
+                      <input
+                        type="text"
+                        value={lbl.en}
+                        onChange={(e) => updateLabel(file.id, "en", e.target.value)}
+                        onBlur={() => persistLabel(file.id)}
+                        placeholder="e.g. Symposium Handbook"
+                        className="w-full px-3 py-2 bg-cream/30 border border-border rounded-lg text-sm text-dark placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-gold/30 focus:border-gold"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-2 shrink-0 pt-2">
+                    <a
+                      href={fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-gold hover:underline whitespace-nowrap"
+                    >
+                      預覽 ↗
+                    </a>
+                    <button
+                      onClick={() => setDeleteCandidate(file)}
+                      className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                      aria-label="刪除"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      {/* Delete confirmation */}
+      {deleteCandidate && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100] p-4" onClick={() => setDeleteCandidate(null)}>
+          <div className="bg-white rounded-xl px-6 py-5 max-w-sm w-full shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h4 className="font-semibold text-dark mb-2">確定刪除此檔案？</h4>
+            <p className="text-sm text-muted mb-5">「{parseLabel(deleteCandidate.label).zh || "(未命名)"}」將永久刪除，無法復原。</p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setDeleteCandidate(null)}
+                className="px-4 py-2 bg-cream/40 text-dark rounded-lg text-sm font-medium hover:bg-cream/60 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors"
+              >
+                確認刪除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -3627,7 +4027,9 @@ export default function SiteDashboard({ slugOverride }: { slugOverride?: string 
     programme: true,
     venues: true,
     speakers: true,
+    other: true,
   });
+  const [quickActionStatus, setQuickActionStatus] = useState<{ register: boolean }>({ register: false });
 
   // Resolve slug → siteId
   useEffect(() => {
@@ -3651,6 +4053,9 @@ export default function SiteDashboard({ slugOverride }: { slugOverride?: string 
             if (Object.keys(vis).length > 0) {
               setSectionVisibility(prev => ({ ...prev, ...vis }));
             }
+            // Quick-action button visibility (require URL set AND visible !== "false")
+            const registerLive = !!data.registration_google_form_url && data.register_btn_visible !== "false";
+            setQuickActionStatus({ register: registerLive });
           } catch { /* ignore */ }
         }
       } catch { /* ignore */ }
@@ -3677,7 +4082,8 @@ export default function SiteDashboard({ slugOverride }: { slugOverride?: string 
     programme: "議程管理",
     venues: "場地管理",
     speakers: "講者管理",
-    registration: "報名設定",
+    other: "其他",
+    registration: "快捷按鈕",
     styles: "樣式設定",
     settings: "網站設定",
   };
@@ -3707,7 +4113,9 @@ export default function SiteDashboard({ slugOverride }: { slugOverride?: string 
               const active = activeTab === item.id;
               const Icon = item.icon;
               const isSection = item.id in sectionVisibility;
+              const isQuickAction = item.id === "registration";
               const isVisible = isSection ? sectionVisibility[item.id as SectionKey] : true;
+              const registerLive = quickActionStatus.register;
               return (
                 <li key={item.id}>
                   <button
@@ -3719,6 +4127,9 @@ export default function SiteDashboard({ slugOverride }: { slugOverride?: string 
                     <span className="flex-1 text-left">{item.label}</span>
                     {isSection && (
                       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isVisible ? "bg-green" : "bg-muted/40"}`} />
+                    )}
+                    {isQuickAction && (
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${registerLive ? "bg-green" : "bg-red-500"}`} />
                     )}
                   </button>
                 </li>
@@ -3777,7 +4188,7 @@ export default function SiteDashboard({ slugOverride }: { slugOverride?: string 
         {/* Content */}
         <main className="flex-1 p-8">
           {/* Section toggle bar */}
-          {activeTab !== "settings" && activeTab !== "styles" && activeTab !== "appearance" && (
+          {activeTab !== "settings" && activeTab !== "styles" && activeTab !== "appearance" && activeTab !== "registration" && (
             <div className="flex items-center justify-between mb-6 px-5 py-3 bg-white rounded-xl border border-border">
               <div className="flex items-center gap-3">
                 <span className={`w-2 h-2 rounded-full ${sectionVisibility[activeTab as SectionKey] ? "bg-green" : "bg-muted/40"}`} />
@@ -3804,7 +4215,8 @@ export default function SiteDashboard({ slugOverride }: { slugOverride?: string 
               {activeTab === "programme" && siteId && <ProgrammePanel siteId={siteId} onToast={showToast} />}
               {activeTab === "venues" && siteId && <VenuesPanel siteId={siteId} onToast={showToast} />}
               {activeTab === "speakers" && siteId && <SpeakersPanel siteId={siteId} onToast={showToast} />}
-              {activeTab === "registration" && siteId && <RegistrationSettingsPanel siteId={siteId} onToast={showToast} />}
+              {activeTab === "other" && siteId && <OtherSectionPanel siteId={siteId} onToast={showToast} />}
+              {activeTab === "registration" && siteId && <RegistrationSettingsPanel siteId={siteId} onToast={showToast} onStatusChange={(s) => setQuickActionStatus(s)} />}
               {activeTab === "styles" && <StylesPanel siteSlug={siteSlug} onToast={showToast} />}
               {activeTab === "settings" && siteId && <SettingsPanel siteId={siteId} siteSlug={siteSlug} onToast={showToast} />}
             </>

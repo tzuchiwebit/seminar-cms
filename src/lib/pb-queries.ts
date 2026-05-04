@@ -113,6 +113,24 @@ export async function getSiteRegistrations(siteId: string) {
   });
 }
 
+export async function getSiteOtherFiles(siteId: string) {
+  try {
+    const all = await pb.collection("uploads").getFullList({
+      filter: `site="${siteId}"`,
+    });
+    const records = all.filter((r) => r.category === "other");
+    records.sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
+    return records.map((r) => ({
+      id: r.id,
+      label: r.label || "",
+      url: pb.files.getURL(r, r.file),
+      filename: r.file,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 /** Get file URL from a PocketBase record */
 export function getFileUrl(record: any, filename: string) {
   if (!filename) return "";

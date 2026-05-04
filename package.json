@@ -4,8 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "predev": "node scripts/fetch-other-files.mjs",
+    "prebuild": "node scripts/fetch-other-files.mjs",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "fetch-other-files": "node scripts/fetch-other-files.mjs"
   },
   "dependencies": {
     "agentation": "^2.3.3",

@@ -28,6 +28,7 @@ import {
 import SpeakerModal from "@/components/public/SpeakerModal";
 import Navbar from "@/components/public/Navbar";
 import FloatingRegister from "@/components/public/FloatingRegister";
+import OtherSection from "@/components/public/OtherSection";
 import Footer from "@/components/public/Footer";
 
 /* ─── Types ─── */
@@ -124,6 +125,7 @@ type HomePageProps = {
   exhibitions: any[];
   venues: any[];
   cssVariables?: { theme_colors: string; theme_typography: string };
+  otherFiles?: { id: string; label: string; url: string; filename: string }[];
 };
 
 /* ─── Helpers ─── */
@@ -151,7 +153,7 @@ function getTypeLabel(type: string, titleZh: string, lang: "zh" | "en" = "zh"): 
 
 /* ─── Page ─── */
 
-export default function HomePage({ days, speakers, settings, siteName, slug, exhibitions, venues, cssVariables }: HomePageProps) {
+export default function HomePage({ days, speakers, settings, siteName, slug, exhibitions, venues, cssVariables, otherFiles = [] }: HomePageProps) {
   /* ── State (must be before derived data that uses lang) ── */
   const [selectedSpeaker, setSelectedSpeaker] = useState<any>(null);
   const [activeDay, setActiveDay] = useState(0);
@@ -752,6 +754,17 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
         </div>
       </section>}
 
+      {/* ═══ Other (其他) Section ═══ */}
+      {settings.section_other_visible !== "false" && (
+        <OtherSection
+          files={otherFiles}
+          titleZh={settings.section_other_title_zh || ""}
+          titleEn={settings.section_other_title_en || ""}
+          lang={lang}
+          slug={slug}
+        />
+      )}
+
       {/* ═══ Sticky Day Tabs ═══ */}
       <StickyDayTabs dayTabs={dayTabs} activeDay={activeDay} setActiveDay={setActiveDay} currentDay={currentDay} />
 
@@ -771,6 +784,7 @@ export default function HomePage({ days, speakers, settings, siteName, slug, exh
         onToggleLang={() => setLang(lang === "en" ? "zh" : "en")}
         showLangToggle={showLangToggle}
         googleFormUrl={settings.registration_google_form_url}
+        registerVisible={settings.register_btn_visible !== "false"}
       />
     </>
   );

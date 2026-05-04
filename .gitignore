@@ -7,3 +7,6 @@ next-env.d.ts
 
 # Build output
 out/
+
+# Generated 其他-section files (downloaded from PB by scripts/fetch-other-files.mjs)
+public/*/*.pdf

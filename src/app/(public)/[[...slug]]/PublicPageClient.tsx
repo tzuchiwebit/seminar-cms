@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect, useCallback } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { getSiteBySlug, getSiteDays, getSiteSpeakers, getSiteSettings, getSiteVenues, getSiteExhibitions } from "@/lib/pb-queries";
+import { getSiteBySlug, getSiteDays, getSiteSpeakers, getSiteSettings, getSiteVenues, getSiteExhibitions, getSiteOtherFiles } from "@/lib/pb-queries";
 import pb from "@/lib/pb";
 import HomePage from "./HomePage";
 
@@ -29,7 +29,7 @@ function PublicPageInner({ preloadedData }: { preloadedData?: any }) {
     try {
       const site = await getSiteBySlug(slug);
       if (site.status === "draft") {
-        setData({ site, days: [], speakers: [], settings: {}, venues: [], exhibitions: [] });
+        setData({ site, days: [], speakers: [], settings: {}, venues: [], exhibitions: [], otherFiles: [] });
         setLoading(false);
         return;
       }
@@ -38,12 +38,13 @@ function PublicPageInner({ preloadedData }: { preloadedData?: any }) {
       const speakers = await getSiteSpeakers(site.id);
       const venues = await getSiteVenues(site.id);
       const exhibitions = await getSiteExhibitions(site.id);
+      const otherFiles = await getSiteOtherFiles(site.id);
       let cssVariables = { theme_colors: "[]", theme_typography: "[]" };
       try {
         const cssRecord = await pb.collection("css_variables").getFirstListItem(`site="${site.id}"`);
         cssVariables = { theme_colors: cssRecord.theme_colors || "[]", theme_typography: cssRecord.theme_typography || "[]" };
       } catch { /* no css_variables */ }
-      setData({ site, days, speakers, settings, venues, exhibitions, cssVariables });
+      setData({ site, days, speakers, settings, venues, exhibitions, cssVariables, otherFiles });
       setLoading(false);
     } catch (err) {
       console.error("Failed to load site:", err);
@@ -89,6 +90,7 @@ function PublicPageInner({ preloadedData }: { preloadedData?: any }) {
       exhibitions={data.exhibitions}
       venues={data.venues}
       cssVariables={data.cssVariables}
+      otherFiles={data.otherFiles || []}
     />
   );
 }

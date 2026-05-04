@@ -5,16 +5,18 @@ export default function FloatingRegister({
   onToggleLang,
   showLangToggle = true,
   googleFormUrl,
+  registerVisible = true,
 }: {
   lang: "zh" | "en";
   onToggleLang: () => void;
   showLangToggle?: boolean;
   googleFormUrl?: string;
+  registerVisible?: boolean;
 }) {
-  const showRegisterBtn = !!googleFormUrl;
+  const showRegisterBtn = !!googleFormUrl && registerVisible;
   return (
     <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex flex-col items-end gap-3">
-      {/* Language Toggle — bigger circle */}
+      {/* Language Toggle */}
       {showLangToggle && (
         <button
           onClick={onToggleLang}
@@ -40,12 +42,10 @@ export default function FloatingRegister({
           className="group relative inline-flex items-center gap-3 px-5 py-3 sm:px-7 sm:py-3.5 bg-dark text-cream rounded-full shadow-2xl hover:shadow-gold/40 hover:scale-105 transition-all duration-300 ring-1 ring-gold/30 hover:ring-gold/60 cursor-pointer"
         >
           {lang === "zh" ? (
-            // CN — single row
             <span className="font-serif font-bold text-base sm:text-lg whitespace-nowrap tracking-wide">
               立即報名
             </span>
           ) : (
-            // EN — two rows stacked
             <div className="flex flex-col items-center">
               <span className="font-serif font-bold text-sm sm:text-lg whitespace-nowrap leading-none">
                 Click Here
@@ -56,7 +56,6 @@ export default function FloatingRegister({
             </div>
           )}
 
-          {/* Diagonal arrow — signals "opens in new tab" */}
           <svg
             className="w-4 h-4 sm:w-[18px] sm:h-[18px] text-gold transition-transform duration-300 ease-out group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
             viewBox="0 0 24 24"
@@ -71,7 +70,6 @@ export default function FloatingRegister({
             <polyline points="8,7 17,7 17,16" />
           </svg>
 
-          {/* Pulsing gold dot — "registration open" status indicator */}
           <span className="absolute -top-1 -right-1 flex h-4 w-4 sm:h-[18px] sm:w-[18px] pointer-events-none">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gold opacity-70" />
             <span className="relative inline-flex rounded-full h-4 w-4 sm:h-[18px] sm:w-[18px] bg-gold border border-cream/80" />

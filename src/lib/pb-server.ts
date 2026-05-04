@@ -102,6 +102,26 @@ export async function fetchSiteDataForBuild(slug: string) {
     cssVariables = { theme_colors: cssRecord.theme_colors || "[]", theme_typography: cssRecord.theme_typography || "[]" };
   } catch { /* no css_variables record */ }
 
+  // Other-section files — fetch ALL uploads for the site, filter client-side.
+  // This avoids PB filter/sort syntax errors on newly-added fields (sortOrder, category enum).
+  let otherFiles: any[] = [];
+  try {
+    const allUploads = await pbServer.collection("uploads").getFullList({
+      filter: `site="${site.id}"`,
+    });
+    const otherRecords = allUploads.filter((r) => r.category === "other");
+    otherRecords.sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
+    otherFiles = otherRecords.map((r) => ({
+      id: r.id,
+      label: r.label || "",
+      url: pbServer.files.getURL(r, r.file),
+      filename: r.file,
+    }));
+    console.log(`[pb-server] ${slug}: found ${otherFiles.length} 其他 file(s) of ${allUploads.length} uploads`);
+  } catch (e) {
+    console.error(`[pb-server] ${slug}: failed to fetch uploads:`, e);
+  }
+
   return {
     site: JSON.parse(JSON.stringify(site)),
     days: JSON.parse(JSON.stringify(daysWithSessions)),
@@ -110,5 +130,6 @@ export async function fetchSiteDataForBuild(slug: string) {
     venues: JSON.parse(JSON.stringify(venues)),
     exhibitions: JSON.parse(JSON.stringify(exhibitions)),
     cssVariables,
+    otherFiles,
   };
 }
